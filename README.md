@@ -6,11 +6,30 @@
 [![C++ Standard](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://en.cppreference.com/w/cpp/20)
 [![License: LGPL v3](https://img.shields.io/badge/License-LGPL_v3-blue.svg)](https://www.gnu.org/licenses/lgpl-3.0)
 
-<!-- TODO: describe here, in a few paragraphs, what the module provides: the
-     :Block (and/or :Solver) classes it defines and the mathematical
-     structure they encode. -->
+`CSPBlock` is a SMS++ :Block for the constraint satisfaction problems of
+constraint programming (CP), i.e., finding values of a set of variables, each
+with a finite set of integer values, that satisfy a set of constraints of a
+catalogue (positive and negative tables, linear equalities and inequalities,
+alldifferent, element and cumulative), and for their weighted version, where
+the soft constraints may be violated at the cost of their weight and each
+value of each variable may have a cost. Its physical representation is the
+universe of each variable, the sorted values it may ever take, and its
+current domain within it, so that a restriction of a domain (e.g., by a
+branching) keeps the indices of all the values; the constraints, each with
+its kind, its scope and its integer parameters, stored one after the other;
+their weights and whether each is active; the costs of the values; and the
+groups the variables may be dealt out to. The `CSPBlock` has no abstract
+representation: its solutions are vectors of values, one per variable, which
+it checks against the constraints and whose objective value it computes.
 
-`CSPBlock` is a SMS++ :Block for ...
+A `CSPBlock` is read from a subset of FlatZinc, the language into which
+MiniZinc flattens a model for a solver (the documentation of `load()` lists
+the constraints and the annotations it reads), and written back into it; it
+is serialized into and deserialized out of netCDF like any other :Block. Its
+domains, universes, costs, weights and constraints can be changed or
+extended, with the `CSPBlockMod` that tell the Solver what changed, and the
+`CSPBlockChange` restricts the domains as a branching does (assigning,
+removing or splitting a value) and brings them back.
 
 
 ## Getting started

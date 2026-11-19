@@ -2,9 +2,9 @@
 /*--------------------------- File CSPBlock.cppm ---------------------------*/
 /*--------------------------------------------------------------------------*/
 /** @file
- * Interface of the C++20 module smspp.cspblock, which exports every name
- * that the headers of CSPBlock declare at namespace scope, together with
- * the modules it depends on; a translation unit can then write
+ * Interface of the C++20 module smspp.cspblock, which exports every name that
+ * the headers of CSPBlock declare at namespace scope, together with the
+ * modules it depends on; a translation unit can then write
  *
  *     import smspp.cspblock;
  *
@@ -41,6 +41,10 @@ export namespace SMSpp_di_unipi_it {
 
  // CSPBlock.h
  using SMSpp_di_unipi_it::CSPBlock;
+ using SMSpp_di_unipi_it::CSPBlockChange;
+ using SMSpp_di_unipi_it::CSPBlockMod;
+ using SMSpp_di_unipi_it::CSPBlockRngdMod;
+ using SMSpp_di_unipi_it::CSPBlockSbstMod;
 }
 
 /*--------------------------------------------------------------------------*/

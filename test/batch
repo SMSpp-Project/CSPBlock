@@ -1,0 +1,14 @@
+# The instances of CSPBlock_battery_test: the family, the size and the
+# number of solutions, "-" if the battery counts them by itself.
+queens 4 2
+queens 5 10
+queens 6 4
+queens 8 92
+mapcolouring 2 0
+mapcolouring 3 18
+mapcolouring 4 768
+sudoku 0 0
+sudoku 4 1
+sudoku 9 1
+scheduling 3 -
+scheduling 5 -

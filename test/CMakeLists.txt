@@ -25,11 +25,34 @@ smspp_copy_runtime(${modName}_unit_test)
 
 add_test(NAME ${modName}_unit_test
          COMMAND ${modName}_unit_test
-         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
 # The label lets the module CI select exactly the tests exercising this
 # module with `ctest -L <module>` (see tests/cmake/TestLabels.cmake in the
 # umbrella for the system-tests counterpart).
 set_tests_properties(${modName}_unit_test PROPERTIES LABELS "${modName}")
+
+# ----- CSPBlock_battery_test ----------------------------------------------- #
+
+# one test per line of the batch file: the family, the size and the number
+# of the solutions of the instance [see battery.cpp]
+add_executable(${modName}_battery_test battery.cpp)
+target_link_libraries(${modName}_battery_test PRIVATE
+                      ${modNamespace}::${modName})
+
+smspp_copy_runtime(${modName}_battery_test)
+
+file(STRINGS batch batchLines REGEX "^[^#]")
+foreach (line IN LISTS batchLines)
+    separate_arguments(args UNIX_COMMAND "${line}")
+    list(GET args 0 family)
+    list(GET args 1 size)
+    add_test(NAME ${modName}_battery_${family}_${size}
+             COMMAND ${modName}_battery_test ${args}
+             WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+    set_tests_properties(${modName}_battery_${family}_${size} PROPERTIES
+                         LABELS "${modName}")
+endforeach ()
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS batch)
 
 # --------------------------------------------------------------------------- #
