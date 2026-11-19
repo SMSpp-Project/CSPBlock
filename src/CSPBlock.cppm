@@ -28,6 +28,7 @@
 module;
 
 #include "CSPBlock.h"
+#include "FlatZincCSPSolver.h"
 
 /*--------------------------------------------------------------------------*/
 /*----------------------------- MODULE PURVIEW -----------------------------*/
@@ -45,6 +46,9 @@ export namespace SMSpp_di_unipi_it {
  using SMSpp_di_unipi_it::CSPBlockMod;
  using SMSpp_di_unipi_it::CSPBlockRngdMod;
  using SMSpp_di_unipi_it::CSPBlockSbstMod;
+
+ // FlatZincCSPSolver.h
+ using SMSpp_di_unipi_it::FlatZincCSPSolver;
 }
 
 /*--------------------------------------------------------------------------*/
