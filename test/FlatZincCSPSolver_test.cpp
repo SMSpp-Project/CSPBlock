@@ -78,6 +78,17 @@ int main( void )
 			       b.get_registered_solvers().front() );
  assert( solver );
 
+ // the configuration bites: a malformed ComputeConfig is discarded whole and
+ // in silence, so I check that the parameters are those of the file and not
+ // the defaults (an empty backend, no arguments, no time limit)
+ assert( solver->get_str_par( FlatZincCSPSolver::strFlatZincSolver ) ==
+	 "minizinc" );
+ const auto & args =
+  solver->get_vstr_par( FlatZincCSPSolver::vstrFlatZincArgs );
+ assert( ( args.size() == 2 ) && ( args[ 0 ] == "--solver" ) &&
+	 ( args[ 1 ] == "cp-sat" ) );
+ assert( solver->get_dbl_par( Solver::dblMaxTime ) == 60 );
+
  int rv = 0;
  if( ! solver->backend_found() ) {
   std::cout << "FlatZincCSPSolver: the backend \""
@@ -92,11 +103,44 @@ int main( void )
   std::cout << "FlatZincCSPSolver: 4 queens, status " << status
 	    << ( ok ? ": OK" : ": FAILED" ) << std::endl;
   assert( ok );
+
+  // reoptimization: restrict the first variable to its value in the
+  // solution, which issues a CSPBlockMod the Solver reads, and solve again
+  const CSPBlock::v_int sol( solver->get_solution().begin() ,
+			     solver->get_solution().end() );
+  b.chg_domains( Block::Subset{ 0 } , CSPBlock::v_v_int{ { sol[ 0 ] } } );
+  const int status2 = solver->compute();
+  const bool ok2 = ( status2 == Solver::kOK ) &&
+		   solver->has_var_solution() &&
+		   b.is_feasible( solver->get_solution() ) &&
+		   ( solver->get_solution()[ 0 ] == sol[ 0 ] );
+  std::cout << "FlatZincCSPSolver: reoptimization, status " << status2
+	    << ( ok2 ? ": OK" : ": FAILED" ) << std::endl;
+  assert( ok2 );
   }
 
  bsc->clear();
  bsc->apply( & b );
  delete cfg;
+
+ // the backend of the configuration bites on the behaviour: one that is not
+ // installed makes compute() return kError (a valid one gives kOK), so the
+ // parameter is not silently ignored [see FlatZincCSPSolverBSCfg-missing.txt]
+ auto cfgm =
+  Configuration::deserialize( "FlatZincCSPSolverBSCfg-missing.txt" );
+ auto bscm = dynamic_cast< BlockSolverConfig * >( cfgm );
+ assert( bscm );
+ bscm->apply( & b );
+ auto solverm = dynamic_cast< FlatZincCSPSolver * >(
+				b.get_registered_solvers().front() );
+ assert( solverm );
+ assert( solverm->get_str_par( FlatZincCSPSolver::strFlatZincSolver ) ==
+	 "fzn-no-such-backend" );
+ assert( solverm->compute() == Solver::kError );
+ bscm->clear();
+ bscm->apply( & b );
+ delete cfgm;
+
  return( rv );
  }
 

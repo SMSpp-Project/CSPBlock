@@ -51,6 +51,13 @@ follows is about building the module yourself.
 - The [SMS++ core library](https://gitlab.com/smspp/smspp) and its
   requirements.
 
+- To solve a `CSPBlock` with `FlatZincCSPSolver`, a FlatZinc backend on the
+  `PATH`: `tools/install_flatzinc_backends.sh` installs the MiniZinc bundle
+  (the `minizinc` driver and the backends OR-Tools CP-SAT, Gecode and Chuffed)
+  under a prefix and with no root, which fits a cluster account such as
+  fenchel; on macOS, `brew install minizinc`. The `strFlatZincSolver` and
+  `vstrFlatZincArgs` parameters select the driver and the backend.
+
 ### Build and install with CMake
 
 Configure and build the library with:

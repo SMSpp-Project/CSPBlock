@@ -28,5 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   FlatZinc and running an external FlatZinc solver on it as a process
   (OR-Tools CP-SAT, Gecode, Chuffed, ...), its executable being the parameter
   `strFlatZincSolver` and its arguments `vstrFlatZincArgs`, and reading the
-  solution back; a default configuration and a test on the 4 queens, skipped
-  when no backend is installed
+  solution back; it reads the Modification of the CSPBlock and rewrites and
+  solves the model again at the next `compute()`, since the textual FlatZinc
+  gives no warm start of the backend; a default configuration, a test on the
+  4 queens skipped when no backend is installed, and
+  `tools/install_flatzinc_backends.sh` to install the MiniZinc bundle

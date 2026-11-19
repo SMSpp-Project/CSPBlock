@@ -87,6 +87,10 @@ test:
           "$GRB_LICENSEID" "$GRB_WLSACCESSID" "$GRB_WLSSECRET" > /tmp/gurobi.lic
         export GRB_LICENSE_FILE=/tmp/gurobi.lic
       fi
+    # install a FlatZinc backend (the MiniZinc bundle with cp-sat, gecode and
+    # chuffed) so the FlatZincCSPSolver test runs for real instead of skipping
+    - tools/install_flatzinc_backends.sh
+    - export PATH="$HOME/.local/minizinc/bin:$PATH"
   script:
     - ctest -V -C Release -L "$CI_PROJECT_TITLE" --test-dir smspp-project/build --no-tests=error
   only:
