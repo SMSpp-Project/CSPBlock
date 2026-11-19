@@ -92,6 +92,7 @@ void FlatZincCSPSolver::set_Block( Block * block )
 
  Solver::set_Block( block );
  f_csp = csp;
+ f_reload = true;
  f_status = kUnEval;
  }
 
@@ -101,8 +102,10 @@ void FlatZincCSPSolver::set_Block( Block * block )
 
 void FlatZincCSPSolver::set_par( idx_type par , double value )
 {
- if( par == dblMaxTime )
+ if( par == dblMaxTime ) {
   MaxTime = value;
+  f_reload = true;  // the cached solution was found under another time limit
+  }
  else
   Solver::set_par( par , value );
  }
@@ -111,8 +114,10 @@ void FlatZincCSPSolver::set_par( idx_type par , double value )
 
 void FlatZincCSPSolver::set_par( idx_type par , std::string && value )
 {
- if( par == strFlatZincSolver )
+ if( par == strFlatZincSolver ) {
   FlatZincSolver = std::move( value );
+  f_reload = true;  // another backend may find another solution
+  }
  else
   Solver::set_par( par , std::move( value ) );
  }
@@ -161,8 +166,10 @@ const std::string & FlatZincCSPSolver::str_par_idx2str( idx_type idx ) const
 void FlatZincCSPSolver::set_par( idx_type par ,
 				 std::vector< std::string > && value )
 {
- if( par == vstrFlatZincArgs )
+ if( par == vstrFlatZincArgs ) {
   FlatZincArgs = std::move( value );
+  f_reload = true;  // other arguments may find another solution
+  }
  else
   Solver::set_par( par , std::move( value ) );
  }
@@ -218,7 +225,23 @@ int FlatZincCSPSolver::compute( bool changedvars )
   throw( std::logic_error( "FlatZincCSPSolver::compute: no CSPBlock "
 			   "attached" ) );
 
+ // the backend is given by the configuration, with no default in the code:
+ // an empty strFlatZincSolver is a misconfiguration, not a reason to invent
+ // one [see FlatZincCSPSolverCfg.txt]
+ if( FlatZincSolver.empty() )
+  throw( std::invalid_argument( "FlatZincCSPSolver::compute: no backend; "
+				"strFlatZincSolver is empty, set it in the "
+				"ComputeConfig" ) );
+
  lock();
+
+ // read the Modification: with nothing changed since the last compute() and
+ // a result already there, the cached one stands [see the class]
+ process_outstanding_Modification();
+ if( ( ! f_reload ) && ( f_status != kUnEval ) ) {
+  unlock();
+  return( f_status );
+  }
 
  f_status = kUnEval;
  f_has_sol = false;
@@ -226,7 +249,7 @@ int FlatZincCSPSolver::compute( bool changedvars )
  f_value = Inf< double >();
  v_sol.clear();
 
- if( ! backend_found() ) {  // no backend to run
+ if( ! backend_found() ) {  // the backend is set but not found on the PATH
   f_status = kError;
   unlock();
   return( f_status );
@@ -271,8 +294,21 @@ int FlatZincCSPSolver::compute( bool changedvars )
    f_status = kStopTime;
   }
 
+ f_reload = false;  // this result holds until the next Modification
  unlock();
  return( f_status );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+void FlatZincCSPSolver::process_outstanding_Modification( void )
+{
+ // the backend is run on the textual FlatZinc of the whole CSPBlock,
+ // rewritten at each compute(): there is no incremental interface, so any
+ // Modification (a change of the physical representation, a CSPBlockChange of
+ // a branching) means the model is written and solved again
+ while( pop() )
+  f_reload = true;
  }
 
 /*--------------------------------------------------------------------------*/

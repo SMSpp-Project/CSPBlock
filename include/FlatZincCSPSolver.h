@@ -87,6 +87,18 @@ namespace SMSpp_di_unipi_it
  * to do, and the solution is read through get_solution(), a std::span of the
  * values, as CSPBlock::is_feasible( std::span ) takes it.
  *
+ * A FlatZincCSPSolver reads the Modification of the CSPBlock [see
+ * add_Modification()], the CSPBlockMod of a change of the physical
+ * representation and those a CSPBlockChange of a branching issues: the backend
+ * is run on the FlatZinc of the whole CSPBlock, rewritten at each compute(),
+ * so there is no incremental interface to it, and any Modification only marks
+ * the cached solution stale, the next compute() rewriting the FlatZinc and
+ * running the backend again; a compute() with no Modification since the last
+ * one returns the cached result. A warm start of the backend is not possible
+ * through the textual FlatZinc (minizinc in batch), so the reoptimization here
+ * is "rewrite the changed model and solve it again", not a warm start of the
+ * backend; a warm start is left to the decomposition Solver to come.
+ *
  * The writer emits standard FlatZinc predicates for the positive table, the
  * linear constraints, all_different, the element of offset 1 and cumulative,
  * which a stock backend knows; the negative table, the element of another
@@ -285,6 +297,15 @@ class FlatZincCSPSolver : public Solver
  protected:
 
 /*--------------------------- PROTECTED METHODS ----------------------------*/
+ /// reads the Modification of the queue, marking the cached solution stale
+ /** Drains the Modification queue [see add_Modification()]: since the backend
+  * has no incremental interface [see the class], any Modification sets
+  * f_reload, so that the next compute() rewrites the FlatZinc and runs the
+  * backend again. */
+
+ void process_outstanding_Modification( void );
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
  /// the FlatZinc of the CSPBlock, every variable an output_var
 
  [[nodiscard]] std::string flatzinc( void ) const;
@@ -316,6 +337,8 @@ class FlatZincCSPSolver : public Solver
  std::vector< std::string > FlatZincArgs;  ///< the parameter vstrFlatZincArgs
 
  double MaxTime = Inf< double >();  ///< the time limit of compute() (s)
+
+ bool f_reload = true;         ///< if the model has to be rewritten and solved
 
  int f_status = kUnEval;       ///< status of the last compute()
 

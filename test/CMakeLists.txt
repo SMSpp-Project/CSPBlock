@@ -67,7 +67,8 @@ target_link_libraries(${modName}_FlatZincCSPSolver_test PRIVATE
 smspp_copy_runtime(${modName}_FlatZincCSPSolver_test)
 
 # the configuration files go next to the test, which reads them
-foreach (cfg FlatZincCSPSolverBSCfg.txt FlatZincCSPSolverCfg.txt)
+foreach (cfg FlatZincCSPSolverBSCfg.txt FlatZincCSPSolverBSCfg-missing.txt
+             FlatZincCSPSolverCfg.txt)
     configure_file(${cfg} ${CMAKE_CURRENT_BINARY_DIR}/${cfg} COPYONLY)
 endforeach ()
 
