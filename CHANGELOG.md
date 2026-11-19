@@ -24,9 +24,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the scheduling of tasks on a resource, whose solutions are enumerated and
   counted
 
+- `FlatZincCSPSolver`, the Solver that solves a CSPBlock by writing its
+  FlatZinc and running an external FlatZinc solver on it as a process
+  (OR-Tools CP-SAT, Gecode, Chuffed, ...), its executable being the parameter
+  `strFlatZincSolver` and its arguments `vstrFlatZincArgs`, and reading the
+  solution back; a default configuration and a test on the 4 queens, skipped
+  when no backend is installed
+
 ### Changed
 
 - the makefiles give the shared library of the module by default on Linux
   and on macOS, as CMake does, and its objects with `SMSppSTATIC` [see
   `lib/makefile-shared` of SMS++]
-
