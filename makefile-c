@@ -1,0 +1,53 @@
+##############################################################################
+################################ makefile-c ##################################
+##############################################################################
+#                                                                            #
+#   complete makefile of CSPBlock                                            #
+#                                                                            #
+#   The makefile defines internally all external libraries (comprised the    #
+#   SMS++ one) required by CSPBlock. Accordingly, all necessary              #
+#   OBJ, H, -I directives, external libraries + -L< libdirs > are added to   #
+#   the corresponding CSPBk* macros.                                         #
+#                                                                            #
+#   Input:  $(CC)        = compiler command                                  #
+#           $(SW)        = compiler options                                  #
+#           $(CSPBkSDR)  = the directory where CSPBlock source is            #
+#           $(CSPBkODR)  = the directory where the objects have to be put    #
+#                                                                            #
+#   Output: $(CSPBkOBJ)  = the final object(s) / library                     #
+#           $(CSPBkLIB)  = external libraries + -L< libdirs >                #
+#            $(CSPBkH)    = the .h files to include for CSPBlock             #
+#                $(CSPBkINC)  = the -I$( CSPBlock directory )                #
+#                                                                            #
+#                             Antonio Frangioni                              #
+#                         Dipartimento di Informatica                        #
+#                             Universita' di Pisa                            #
+#                                                                            #
+##############################################################################
+
+# define & include the necessary modules- - - - - - - - - - - - - - - - - - -
+# if a module is not used in the current configuration, just comment out the
+# corresponding include line
+# each module outputs some macros to be used here:
+# *OBJ is the final object/library
+# *H   is the list of all include files
+# *INC is the -I< include directories >
+
+# define input macros for SMS++ complete makefile, then include it
+SMS++SDR = $(CSPBkSDR)/../SMS++
+include $(SMS++SDR)/lib/makefile-c
+
+# include the makefile requiring all external modules in input
+include $(CSPBkSDR)/makefile
+
+# macros to be exported - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+# append external -I directives to CSPBkINC, CSPBkOBJ and CSPBkH as defined
+# by the makefile, thus the := assignment has to be used (use GNU make)
+CSPBkOBJ := $(CSPBkOBJ) $(SMS++OBJ)
+CSPBkINC := $(CSPBkINC) $(SMS++INC)
+
+# external libraries for CSPBlock
+CSPBkLIB = $(SMS++LIB)
+
+############################ End of makefile #################################
