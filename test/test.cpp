@@ -604,6 +604,132 @@ static void test_changes( void )
  }
 
 /*--------------------------------------------------------------------------*/
+/// generates the abstract representation and checks it against the physical
+/** Builds the abstract Variable and Constraint of \p b, then, for each
+ * assignment in \p cases, sets the values of the ColVariable and checks that
+ * the abstract feasibility is_feasible( true ) agrees with the physical
+ * is_feasible( std::span ); the domains of \p b must be contiguous and free
+ * of holes, so that the box of each variable is exactly its domain and the
+ * two representations coincide. */
+
+static void check_abstract( CSPBlock & b , const std::vector< v_int > & cases )
+{
+ b.generate_abstract_variables();
+ b.generate_abstract_constraints();
+ assert( b.get_abstract_variables().size() == b.get_number_variables() );
+
+ auto & var = b.get_abstract_variables();
+ for( const auto & a : cases ) {
+  assert( a.size() == var.size() );
+  for( std::size_t i = 0 ; i < a.size() ; ++i )
+   var[ i ].set_value( a[ i ] );
+  const bool phys = b.is_feasible( std::span< const int >( a ) );
+  const bool abst = b.is_feasible( true );
+  assert( phys == abst );
+  }
+ }
+
+/*--------------------------------------------------------------------------*/
+
+static void test_abstract( void )
+{
+ // an alldifferent instance: 3 variables over 0..3, all pairwise different
+ {
+  CSPBlock b;
+  b.load( CSPBlock::v_v_int( 3 , { 0 , 1 , 2 , 3 } ) ,
+	  { CSPBlock::kAllDifferent } , { { 0 , 1 , 2 } } , { {} } );
+  check_abstract( b , { { 0 , 1 , 2 } ,    // feasible
+			{ 3 , 2 , 1 } ,    // feasible
+			{ 0 , 0 , 1 } ,    // alldifferent violated
+			{ 2 , 2 , 2 } ,    // alldifferent violated
+			{ 0 , 1 , 3 } } ); // feasible
+ }
+
+ // a linear instance: 2 variables over 0..5, a <=, an == and a constraint
+ // with a repeated variable (2 x - x = x <= 3), to exercise the aggregation
+ {
+  CSPBlock b;
+  b.load( CSPBlock::v_v_int( 2 , { 0 , 1 , 2 , 3 , 4 , 5 } ) ,
+	  { CSPBlock::kLinear , CSPBlock::kLinear , CSPBlock::kLinear } ,
+	  { { 0 , 1 } , { 0 , 1 } , { 0 , 0 } } ,
+	  { { 1 , 1 , CSPBlock::kLE , 5 } ,    // x + y <= 5
+	    { 1 , -1 , CSPBlock::kEQ , 1 } ,   // x - y == 1
+	    { 2 , -1 , CSPBlock::kLE , 3 } } );  // x <= 3
+  check_abstract( b , { { 3 , 2 } ,    // feasible: 5<=5, 1==1, 3<=3
+			{ 1 , 0 } ,    // feasible
+			{ 4 , 2 } ,    // x + y = 6 > 5
+			{ 2 , 2 } ,    // x - y = 0 != 1
+			{ 4 , 3 } ,    // x = 4 > 3 (the repeated-variable one)
+			{ 5 , 4 } } ); // x + y = 9 > 5
+ }
+
+ // a not-equal linear constraint, which is not a single row: x != 3
+ {
+  CSPBlock b;
+  b.load( { { 0 , 1 , 2 , 3 , 4 } } , { CSPBlock::kLinear } , { { 0 } } ,
+	  { { 1 , CSPBlock::kNE , 3 } } );
+  check_abstract( b , { { 0 } , { 2 } , { 3 } , { 4 } } );
+ }
+
+ // an inactive hard constraint and a soft one are not in the abstract
+ // representation, so an assignment violating only them is abstract-feasible
+ // while it is still physically feasible (is_feasible ignores both)
+ {
+  CSPBlock b;
+  b.load( CSPBlock::v_v_int( 2 , { 0 , 1 , 2 , 3 } ) ,
+	  { CSPBlock::kAllDifferent , CSPBlock::kLinear } ,
+	  { { 0 , 1 } , { 0 , 1 } } ,
+	  { {} , { 1 , 1 , CSPBlock::kLE , 2 } } ,
+	  { Inf< double >() , 4 } );         // the linear one is soft
+  b.chg_active( false , Block::Subset{ 0 } );  // the alldifferent is inactive
+  check_abstract( b , { { 3 , 3 } , { 0 , 0 } , { 2 , 3 } } );
+ }
+
+ // the linear relaxation of alldifferent: the "sum" bound, built on its own
+ {
+  CSPBlock b;
+  b.load( CSPBlock::v_v_int( 3 , { 0 , 1 , 2 , 3 } ) ,
+	  { CSPBlock::kAllDifferent } , { { 0 , 1 , 2 } } , { {} } );
+  b.generate_abstract_variables();
+  b.generate_abstract_constraints();
+  auto & var = b.get_abstract_variables();
+
+  AllDifferentConstraint ad( & b );
+  ad.set_data( & b , 0 , { & var[ 0 ] , & var[ 1 ] , & var[ 2 ] } );
+  auto rel = ad.lin_relaxation();
+  assert( rel.size() == 1 );
+  auto * fr = rel.front();
+  // 3 distinct values out of {0,1,2,3}: sum in [0+1+2, 3+2+1] = [3, 6]
+  assert( ( fr->get_lhs() == 3 ) && ( fr->get_rhs() == 6 ) );
+  // the relaxation is valid: an alldifferent-feasible point lies in it, and it
+  // rejects a point whose sum is out of the bound
+  var[ 0 ].set_value( 0 ); var[ 1 ].set_value( 1 ); var[ 2 ].set_value( 2 );
+  fr->compute();
+  assert( fr->feasible() );
+  var[ 0 ].set_value( 0 ); var[ 1 ].set_value( 0 ); var[ 2 ].set_value( 1 );
+  fr->compute();
+  assert( ! fr->feasible() );  // sum 1 < 3
+  delete fr;
+ }
+
+ // a table, an element and a cumulative give no linear view in the prototype
+ {
+  CSPBlock b;
+  b.load( CSPBlock::v_v_int( 3 , { 0 , 1 , 2 , 3 } ) , {} , {} , {} );
+  b.generate_abstract_variables();
+  auto & var = b.get_abstract_variables();
+  TableConstraint tb( & b );
+  tb.set_data( & b , 0 , { & var[ 0 ] , & var[ 1 ] } );
+  ElementConstraint el( & b );
+  el.set_data( & b , 0 , { & var[ 0 ] , & var[ 1 ] , & var[ 2 ] } );
+  CumulativeConstraint cu( & b );
+  cu.set_data( & b , 0 , { & var[ 0 ] , & var[ 1 ] } );
+  assert( tb.lin_relaxation().empty() && el.lin_relaxation().empty() &&
+	  cu.lin_relaxation().empty() );
+ }
+ }
+
+/*--------------------------------------------------------------------------*/
 
 int main( void )
 {
@@ -615,6 +741,7 @@ int main( void )
  test_round_trips();
  test_modifications();
  test_changes();
+ test_abstract();
 
  std::cout << "CSPBlock: all tests passed" << std::endl;
  return( 0 );

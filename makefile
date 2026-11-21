@@ -31,7 +31,8 @@ CSPBkOBJ = $(CSPBkSDR)/obj/CSPBlock.o
 
 CSPBkINC = -I$(CSPBkSDR)/include
 
-CSPBkH   = $(CSPBkSDR)/include/CSPBlock.h
+CSPBkH   = $(CSPBkSDR)/include/CSPBlock.h \
+	$(CSPBkSDR)/include/CSPGlobalConstraints.h
 
 # the C++20 module [see makefile-mod of SMS++] - - - - - - - - - - - - - - -
 # the prefixes of the modules of the dependencies (e.g., UCBck) go in place

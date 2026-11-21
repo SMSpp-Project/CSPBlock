@@ -33,7 +33,10 @@
 
 #include "Block.h"
 #include "Change.h"
+#include "CSPGlobalConstraints.h"
+#include "FRowConstraint.h"
 #include "Objective.h"
+#include "OneVarConstraint.h"
 
 /*--------------------------------------------------------------------------*/
 /*------------------------------ NAMESPACE ---------------------------------*/
@@ -321,21 +324,54 @@ class CSPBlock : public Block
  void set_variable_groups( v_int && groups );
 
 /*--------------------- Methods for handling Variable ----------------------*/
- /// the abstract representation is not defined yet: does nothing
+ /// builds the abstract Variable: one integer ColVariable per variable
+ /** Builds the abstract representation of the variables [see
+  * generate_abstract_constraints() for the constraints], one integer
+  * ColVariable per variable of the CSPBlock, and registers them with
+  * add_static_variable(). Each ColVariable is made integer; its numeric
+  * bounds, i.e., the min and the max of its current domain, are a box
+  * OneVarConstraint built by generate_abstract_constraints(), since a
+  * ColVariable carries only sign and unit bounds in its type, not an
+  * arbitrary min..max [see ColVariable.h]. The method guards against being
+  * called twice, as the Block protocol asks. */
 
- void generate_abstract_variables( Configuration * = nullptr ) override
- {}
+ void generate_abstract_variables( Configuration * stvv = nullptr ) override;
 
 /*-------------------- Methods for handling Constraint ---------------------*/
- /// the abstract representation is not defined yet: does nothing
+ /// builds the abstract Constraint: the bounds and one per active hard one
+ /** Builds the abstract representation of the constraints, calling
+  * generate_abstract_variables() first if it has not been called. It builds
+  * (i) a box OneVarConstraint per variable, holding the min..max of its
+  * current domain, and (ii) one abstract Constraint per active and hard
+  * constraint of the physical catalogue: a kLinear with the kLE or the kEQ
+  * operator is an FRowConstraint over a LinearFunction, the globals and a
+  * kLinear with the kNE operator are the module-local :CSPConstraint [see
+  * CSPGlobalConstraints.h], each reusing is_satisfied() as its verifier. A
+  * soft constraint is not built here, since its penalty belongs to the
+  * objective, which phase 1 does not generate [see generate_objective()]. */
 
- void generate_abstract_constraints( Configuration * = nullptr )
-  override {}
+ void generate_abstract_constraints( Configuration * stcc = nullptr )
+  override;
 
 /*--------------------- Methods for handling Objective ---------------------*/
- /// the abstract representation is not defined yet: does nothing
+ /// the abstract objective is not defined yet: does nothing
+ /** The abstract objective (the costs of the values and the weights of the
+  * soft constraints) is left to a later phase [see doc/cp-design.md]; phase 1
+  * only generates the Variable and the Constraint. */
 
  void generate_objective( Configuration * = nullptr ) override {}
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// returns the abstract integer ColVariable, one per variable
+ /** Returns the integer ColVariable of the abstract representation, one per
+  * variable of the CSPBlock, which generate_abstract_variables() builds; it
+  * is empty until then. It is not const, so that a Solver, or a test, can set
+  * their values before checking the abstract representation [see
+  * is_feasible( bool )]. */
+
+ [[nodiscard]] std::vector< ColVariable > & get_abstract_variables( void ) {
+  return( v_var );
+  }
 
 /*------------------ Methods for reading the data of the CSPBlock ----------*/
  /// the sense of the objective, which is minimization
@@ -490,6 +526,22 @@ class CSPBlock : public Block
  [[nodiscard]] bool is_feasible( std::span< const int > a ) const;
 
  using Block::is_feasible;  ///< the one of the abstract representation
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ /// returns true if the abstract representation is feasible at its values
+ /** With \p useabstract false this is the inherited Block check, i.e., the
+  * sub-Blocks, of which the CSPBlock has none. With \p useabstract true it
+  * checks the abstract representation [see generate_abstract_constraints()]
+  * at the current values of its ColVariable: it compute()s and feasible()s
+  * the box of each variable and each generated abstract Constraint, and
+  * returns their conjunction; an exception is thrown if the abstract
+  * constraints are not generated yet. The two differ from
+  * is_feasible( std::span ) only where the physical representation is richer
+  * than the abstract one, i.e., a current domain with holes, which the box
+  * widens to its min..max, and a soft constraint, which is not generated. */
+
+ bool is_feasible( bool useabstract = false ,
+		   Configuration * fsbc = nullptr ) override;
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
  /// returns the sum of the weights of the active soft constraints violated
@@ -764,6 +816,33 @@ class CSPBlock : public Block
  v_dbl v_weights;         ///< the weights of the constraints, +INF if hard
 
  v_flag v_active;         ///< 1 for each active constraint
+
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
+ // the abstract representation [see generate_abstract_variables() and
+ // generate_abstract_constraints()]; v_var is declared before the
+ // constraints so that, on destruction, the constraints (destroyed first,
+ // in reverse order of declaration) unregister from ColVariable still alive
+
+ unsigned char f_AR = 0;  ///< what of the abstract representation is there
+
+ static constexpr unsigned char HasVar = 1;  ///< the Variable are there
+ static constexpr unsigned char HasCon = 2;  ///< the Constraint are there
+
+ std::vector< ColVariable > v_var;  ///< one integer ColVariable per variable
+
+ std::vector< BoxConstraint > v_box;  ///< the min..max bound of each variable
+
+ std::vector< FRowConstraint > v_lin;  ///< the kLinear kLE/kEQ constraints
+
+ std::vector< AllDifferentConstraint > v_alldiff;  ///< the kAllDifferent ones
+
+ std::vector< TableConstraint > v_table;  ///< the kExtension/kConflicts ones
+
+ std::vector< ElementConstraint > v_element;  ///< the kElement ones
+
+ std::vector< CumulativeConstraint > v_cumul;  ///< the kCumulative ones
+
+ std::vector< NotEqualConstraint > v_ne;  ///< the kLinear kNE constraints
 
 /*----------------------- PRIVATE PART OF THE CLASS ------------------------*/
 
