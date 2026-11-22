@@ -23,3 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - the unit tests and a battery on the n queens, a map colouring, sudoku and
   the scheduling of tasks on a resource, whose solutions are enumerated and
   counted
+
+### Changed
+
+- the makefiles give the shared library of the module by default on Linux
+  and on macOS, as CMake does, and its objects with `SMSppSTATIC` [see
+  `lib/makefile-shared` of SMS++]
+
