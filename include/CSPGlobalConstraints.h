@@ -349,7 +349,10 @@ class CSPConstraint : public Constraint
  * of the k largest distinct values that any of them may take, which is read
  * off the current domains. This is a single FRowConstraint lb <= sum x_i <=
  * ub; it is weak but valid, and far cheaper than the pairwise big-M or the
- * clique inequalities. */
+ * clique inequalities. When the union of the domains has fewer than k distinct
+ * values the constraint is infeasible by the pigeonhole principle, and the
+ * relaxation is a single row no point satisfies (1 <= sum x_i <= 0), so that
+ * it witnesses the infeasibility rather than dropping it. */
 
 class AllDifferentConstraint : public CSPConstraint
 {
@@ -370,11 +373,15 @@ class AllDifferentConstraint : public CSPConstraint
 /*--------------------------------------------------------------------------*/
 /// the abstract form of a kExtension or kConflicts constraint
 /** The values of the scope must be one of the tuples (kExtension) or none of
- * them (kConflicts). The verifier is the base one. The linear relaxation of
- * a table is its convex hull, which is not cheap; a prototype weak view would
- * be the per-column value bounds (for a positive table) or nothing (for a
- * negative one). TODO: emit the per-column bounds for kExtension and a
- * convex-hull or big-M view in general; for now the relaxation is empty. */
+ * them (kConflicts). The verifier is the base one. For a positive table
+ * (kExtension) the linear relaxation is the cheap, valid per-variable box: for
+ * each distinct variable of the scope, the min..max of the values that
+ * variable takes across the tuples, as one FRowConstraint lb <= x <= ub; it is
+ * a necessary condition (every tuple lies in it), weak but valid and with no
+ * auxiliary variable, far cheaper than the convex hull of the table. For a
+ * negative table (kConflicts) the feasible region is not convex and the box
+ * would not be valid, so the relaxation is left empty. TODO: a convex-hull or
+ * big-M view of the whole table, and a view of the negative one. */
 
 class TableConstraint : public CSPConstraint
 {
@@ -385,8 +392,8 @@ class TableConstraint : public CSPConstraint
 
  ~TableConstraint() override = default;
 
- // TODO: lin_relaxation() left as the base (empty); a positive table admits
- //       the cheap per-column min..max bounds, a general one its convex hull.
+ [[nodiscard]] std::list< FRowConstraint * > lin_relaxation( void )
+  const override;
 
  };  // end( class( TableConstraint ) )
 

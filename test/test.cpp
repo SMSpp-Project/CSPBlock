@@ -671,6 +671,54 @@ static void test_abstract( void )
   check_abstract( b , { { 0 } , { 2 } , { 3 } , { 4 } } );
  }
 
+ // a positive table (kExtension): the pairs (0,1) and (2,3) over 0..3
+ {
+  CSPBlock b;
+  b.load( CSPBlock::v_v_int( 2 , { 0 , 1 , 2 , 3 } ) ,
+	  { CSPBlock::kExtension } , { { 0 , 1 } } , { { 0 , 1 , 2 , 3 } } );
+  check_abstract( b , { { 0 , 1 } ,    // a tuple: feasible
+			{ 2 , 3 } ,    // a tuple: feasible
+			{ 1 , 1 } ,    // not a tuple
+			{ 3 , 0 } } ); // not a tuple
+ }
+
+ // a negative table (kConflicts): the pairs (0,0) and (1,1) forbidden, 0..3
+ {
+  CSPBlock b;
+  b.load( CSPBlock::v_v_int( 2 , { 0 , 1 , 2 , 3 } ) ,
+	  { CSPBlock::kConflicts } , { { 0 , 1 } } , { { 0 , 0 , 1 , 1 } } );
+  check_abstract( b , { { 0 , 1 } ,    // not forbidden: feasible
+			{ 3 , 3 } ,    // not forbidden: feasible
+			{ 0 , 0 } ,    // forbidden
+			{ 1 , 1 } } ); // forbidden
+ }
+
+ // an element of offset 1: with the scope ( i , z , x_0 , x_1 ), i selects
+ // x_{i - 1} and forces it equal to z; i over 1..2, the others over 0..3
+ {
+  CSPBlock b;
+  b.load( { { 1 , 2 } , { 0 , 1 , 2 , 3 } , { 0 , 1 , 2 , 3 } ,
+	    { 0 , 1 , 2 , 3 } } , { CSPBlock::kElement } ,
+	  { { 0 , 1 , 2 , 3 } } , { { 1 } } );
+  check_abstract( b , { { 1 , 2 , 2 , 0 } ,    // i=1: x_0=2=z: feasible
+			{ 2 , 0 , 3 , 0 } ,    // i=2: x_1=0=z: feasible
+			{ 1 , 2 , 0 , 3 } ,    // i=1: x_0=0 != z=2
+			{ 2 , 1 , 3 , 2 } } ); // i=2: x_1=2 != z=1
+ }
+
+ // a cumulative: two tasks of duration 2 and usage 1, capacity 1, over 0..3;
+ // feasible only when the two do not overlap in time
+ {
+  CSPBlock b;
+  b.load( CSPBlock::v_v_int( 2 , { 0 , 1 , 2 , 3 } ) ,
+	  { CSPBlock::kCumulative } , { { 0 , 1 } } ,
+	  { { 2 , 2 , 1 , 1 , 1 } } );
+  check_abstract( b , { { 0 , 2 } ,    // [0,2) and [2,4): feasible
+			{ 2 , 0 } ,    // [2,4) and [0,2): feasible
+			{ 0 , 1 } ,    // overlap on [1,2): usage 2 > 1
+			{ 1 , 0 } } ); // overlap on [1,2)
+ }
+
  // an inactive hard constraint and a soft one are not in the abstract
  // representation, so an assignment violating only them is abstract-feasible
  // while it is still physically feasible (is_feasible ignores both)
@@ -712,11 +760,73 @@ static void test_abstract( void )
   delete fr;
  }
 
- // a table, an element and a cumulative give no linear view in the prototype
+ // the linear relaxation of a positive table: one per-variable box bounding
+ // each variable to the min..max of the values it takes across the tuples
  {
   CSPBlock b;
-  b.load( CSPBlock::v_v_int( 3 , { 0 , 1 , 2 , 3 } ) , {} , {} , {} );
+  // the tuples (0,1), (2,3) and (1,3): x_0 takes {0,2,1} and x_1 takes {1,3}
+  b.load( CSPBlock::v_v_int( 2 , { 0 , 1 , 2 , 3 } ) ,
+	  { CSPBlock::kExtension } , { { 0 , 1 } } ,
+	  { { 0 , 1 , 2 , 3 , 1 , 3 } } );
   b.generate_abstract_variables();
+  b.generate_abstract_constraints();
+  auto & var = b.get_abstract_variables();
+
+  TableConstraint tb( & b );
+  tb.set_data( & b , 0 , { & var[ 0 ] , & var[ 1 ] } );
+  auto rel = tb.lin_relaxation();
+  assert( rel.size() == 2 );       // one box per distinct variable
+  // valid: a tuple of the table, (2,3), lies in every returned box
+  var[ 0 ].set_value( 2 ); var[ 1 ].set_value( 3 );
+  for( auto * fr : rel ) {
+   fr->compute();
+   assert( fr->feasible() );
+   }
+  // and a point out of a bound is rejected: x_0 = 3 exceeds its max of 2
+  var[ 0 ].set_value( 3 ); var[ 1 ].set_value( 3 );
+  bool rejected = false;
+  for( auto * fr : rel ) {
+   fr->compute();
+   rejected = rejected || ( ! fr->feasible() );
+   }
+  assert( rejected );
+  for( auto * fr : rel )
+   delete fr;
+ }
+
+ // the fixed relaxation of alldifferent: infeasible when the distinct values
+ // are fewer than the variables (3 variables over the 2 values {0,1})
+ {
+  CSPBlock b;
+  b.load( CSPBlock::v_v_int( 3 , { 0 , 1 } ) , { CSPBlock::kAllDifferent } ,
+	  { { 0 , 1 , 2 } } , { {} } );
+  b.generate_abstract_variables();
+  b.generate_abstract_constraints();
+  auto & var = b.get_abstract_variables();
+
+  AllDifferentConstraint ad( & b );
+  ad.set_data( & b , 0 , { & var[ 0 ] , & var[ 1 ] , & var[ 2 ] } );
+  auto rel = ad.lin_relaxation();
+  assert( rel.size() == 1 );
+  auto * fr = rel.front();
+  // 1 <= sum x_i <= 0: no assignment of the variables satisfies it
+  var[ 0 ].set_value( 0 ); var[ 1 ].set_value( 1 ); var[ 2 ].set_value( 0 );
+  fr->compute();
+  assert( ! fr->feasible() );
+  var[ 0 ].set_value( 1 ); var[ 1 ].set_value( 1 ); var[ 2 ].set_value( 1 );
+  fr->compute();
+  assert( ! fr->feasible() );
+  delete fr;
+ }
+
+ // a negative table, an element and a cumulative give no linear view in the
+ // prototype: kConflicts is non-convex, the other two need auxiliary variables
+ {
+  CSPBlock b;
+  b.load( CSPBlock::v_v_int( 3 , { 0 , 1 , 2 , 3 } ) ,
+	  { CSPBlock::kConflicts } , { { 0 , 1 } } , { { 0 , 0 } } );
+  b.generate_abstract_variables();
+  b.generate_abstract_constraints();
   auto & var = b.get_abstract_variables();
   TableConstraint tb( & b );
   tb.set_data( & b , 0 , { & var[ 0 ] , & var[ 1 ] } );

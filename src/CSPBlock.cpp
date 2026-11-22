@@ -2212,7 +2212,7 @@ void CSPBlock::generate_abstract_variables( Configuration * stvv )
  const auto n = get_number_variables();
  v_var.resize( n );   // resized once, so the ColVariable do not move
  for( Index i = 0 ; i < n ; ++i )
-  v_var[ i ].is_integer( true , eNoBlck );  // integer; bounds are the box below
+  v_var[ i ].is_integer( true , eNoBlck );  // integer; bounds are the box
 
  add_static_variable( v_var , "x" );
 
@@ -2428,8 +2428,21 @@ std::list< FRowConstraint * > AllDifferentConstraint::lin_relaxation( void )
   }
  std::sort( vals.begin() , vals.end() );
  vals.erase( std::unique( vals.begin() , vals.end() ) , vals.end() );
- if( vals.size() < k )  // not enough distinct values: no valid sum bound
-  return( std::list< FRowConstraint * >() );  // itself infeasible
+ if( vals.size() < k ) {
+  // fewer distinct values than variables: by the pigeonhole principle no
+  // assignment of pairwise distinct values exists, so the constraint, and
+  // thus its relaxation, is infeasible; witness it with a row that no point
+  // satisfies (1 <= sum x_i <= 0) rather than dropping the infeasibility
+  LinearFunction::v_coeff_pair pairs;
+  pairs.reserve( k );
+  for( auto v : f_var )
+   pairs.emplace_back( v , double( 1 ) );
+  auto * fr = new FRowConstraint();
+  fr->set_lhs( double( 1 ) , eNoBlck );
+  fr->set_rhs( double( 0 ) , eNoBlck );
+  fr->set_function( new LinearFunction( std::move( pairs ) ) , eNoBlck );
+  return( std::list< FRowConstraint * >{ fr } );
+  }
 
  long long lo = 0 , hi = 0;
  for( std::size_t j = 0 ; j < k ; ++j ) {
@@ -2447,6 +2460,54 @@ std::list< FRowConstraint * > AllDifferentConstraint::lin_relaxation( void )
  fr->set_rhs( double( hi ) , eNoBlck );
  fr->set_function( new LinearFunction( std::move( pairs ) ) , eNoBlck );
  return( std::list< FRowConstraint * >{ fr } );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+std::list< FRowConstraint * > TableConstraint::lin_relaxation( void ) const
+{
+ std::list< FRowConstraint * > rel;
+
+ // only a positive table (kExtension) admits the cheap per-variable box; a
+ // negative one (kConflicts) has a non-convex feasible region [see header].
+ // The kind is read from the CSPBlock, since the stored index alone does not
+ // tell the two apart
+ if( ( f_k >= f_csp->get_number_constraints() ) ||
+     ( f_csp->get_kinds()[ f_k ] != CSPBlock::kExtension ) )
+  return( rel );
+
+ const auto s = f_csp->get_scopes()[ f_k ];
+ const auto p = f_csp->get_parameters()[ f_k ];
+ const auto n = s.size();
+ if( ( n == 0 ) || p.empty() )  // no column or no tuple: nothing to bound
+  return( rel );
+
+ // for each distinct variable of the scope, the min and the max of the values
+ // it takes across the tuples, which are p read n values at a time [see
+ // CSPBlock.h]; a variable at more than one position is bounded by the
+ // min..max over all of them, which is a valid necessary condition
+ auto & var = f_csp->get_abstract_variables();
+ CSPBlock::v_int seen;
+ for( std::size_t j = 0 ; j < n ; ++j ) {
+  if( std::find( seen.begin() , seen.end() , s[ j ] ) != seen.end() )
+   continue;
+  seen.push_back( s[ j ] );
+  long long lo = p[ j ] , hi = p[ j ];
+  for( std::size_t jj = j ; jj < n ; ++jj )
+   if( s[ jj ] == s[ j ] )
+    for( std::size_t t = 0 ; t < p.size() ; t += n ) {
+     lo = std::min< long long >( lo , p[ t + jj ] );
+     hi = std::max< long long >( hi , p[ t + jj ] );
+     }
+  LinearFunction::v_coeff_pair pairs;
+  pairs.emplace_back( & var[ s[ j ] ] , double( 1 ) );
+  auto * fr = new FRowConstraint();
+  fr->set_lhs( double( lo ) , eNoBlck );
+  fr->set_rhs( double( hi ) , eNoBlck );
+  fr->set_function( new LinearFunction( std::move( pairs ) ) , eNoBlck );
+  rel.push_back( fr );
+  }
+ return( rel );
  }
 
 /*--------------------------------------------------------------------------*/
