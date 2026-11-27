@@ -2,6 +2,11 @@
 #  CSPBlock — .gitignore
 # ============================================================
 
+# --- instances (distributed through the GitLab Package Registry) ---
+data/fzn
+data/*.tgz
+data/.extracted*
+
 # --- C/C++ build artifacts ----------------------------------
 *.o
 *.obj

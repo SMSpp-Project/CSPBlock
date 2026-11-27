@@ -24,6 +24,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the scheduling of tasks on a resource, whose solutions are enumerated and
   counted
 
+- the instances in FlatZinc in the GitLab Package Registry of the project,
+  which CMake downloads into data/fzn when the tests need them: 20 RCPSP of
+  PSPLIB j30, 14 graphs of the DIMACS colouring benchmark, the Golomb rulers
+  of 5 to 10 marks and 10 quasigroup completion problems, with their optima,
+  written by the scripts in data/
+
 - the abstract representation of `CSPBlock`: an integer ColVariable per
   variable, a box per variable on its current domain, an FRowConstraint per
   linear constraint, and the global constraints as `CSPConstraint`, which
