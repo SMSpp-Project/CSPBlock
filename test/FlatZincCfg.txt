@@ -3,8 +3,8 @@
 #
 # The ComputeConfig of a FlatZincCSPSolver that solves a CSPBlock with the
 # CP-SAT of OR-Tools through MiniZinc; strFlatZincSolver and
-# vstrFlatZincArgs select another backend (e.g., fzn-cp-sat, Gecode,
-# Chuffed).
+# vstrFlatZincArgs select another backend (e.g., Gecode or Chuffed through
+# MiniZinc, or the executable fzn-cp-sat called directly).
 #
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

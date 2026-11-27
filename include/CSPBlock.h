@@ -254,7 +254,7 @@ class CSPBlock : public Block
 /*------------------------------- DESTRUCTOR -------------------------------*/
  /// destructor of CSPBlock
 
- ~CSPBlock() override = default;
+ ~CSPBlock() override { guts_of_destructor(); }
 
 /*------------------------- OTHER INITIALIZATIONS --------------------------*/
  /// loads the CSPBlock out of the given universes and constraints
@@ -325,8 +325,7 @@ class CSPBlock : public Block
   * entry per variable, or none to say that there are no groups; the groups
   * are numbered from 0 to the largest entry, and a group may be empty. The
   * groups are what a structure of the CSPBlock is to be built out of, as
-  * in SATBlock; the structure itself waits for the abstract
-  * representation. */
+  * in SATBlock; the CSPBlock does not build the structure itself. */
 
  void set_variable_groups( v_int && groups );
 
@@ -589,8 +588,9 @@ class CSPBlock : public Block
  *
  * These methods change the physical representation of the CSPBlock,
  * issuing the CSPBlockMod [see below] as \p issueMod says [see
- * Observer::make_par()]. Since the CSPBlock has no abstract representation
- * yet, there is nothing else to change. Nothing is ever removed, so that
+ * Observer::make_par()]; they do not change the abstract representation,
+ * which, if generated, stays as it was built [see
+ * generate_abstract_constraints()]. Nothing is ever removed, so that
  * the indices of the variables, of the slots and of the constraints never
  * change for those that are there, and a Modification can be read after
  * other ones have been issued.

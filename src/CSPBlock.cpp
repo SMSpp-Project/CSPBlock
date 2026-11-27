@@ -2408,10 +2408,11 @@ void CSPBlockChange::serialize( netCDF::NcGroup & group ) const
 
 int CSPConstraint::compute( bool changedvars )
 {
- const auto n = f_csp->get_number_variables();
+ // the variables added after the ColVariable were built are in no scope
+ // here, and are left at 0
  auto & var = f_csp->get_abstract_variables();
- CSPBlock::v_int a( n );
- for( Block::Index i = 0 ; i < n ; ++i )
+ CSPBlock::v_int a( f_csp->get_number_variables() , 0 );
+ for( Block::Index i = 0 ; i < std::min( a.size() , var.size() ) ; ++i )
   a[ i ] = int( std::lround( var[ i ].get_value() ) );
  f_feasible = f_csp->is_satisfied( f_k , a );
  return( kOK );

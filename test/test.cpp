@@ -663,7 +663,7 @@ static void test_abstract( void )
 			{ 1 , 0 } ,    // feasible
 			{ 4 , 2 } ,    // x + y = 6 > 5
 			{ 2 , 2 } ,    // x - y = 0 != 1
-			{ 4 , 3 } ,    // x = 4 > 3 (the repeated-variable one)
+			{ 4 , 3 } ,    // x + y = 7 > 5 and x = 4 > 3
 			{ 5 , 4 } } ); // x + y = 9 > 5
  }
 

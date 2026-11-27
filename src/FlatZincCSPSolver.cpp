@@ -23,6 +23,8 @@
 #include <sstream>
 #include <thread>
 
+#include <cctype>
+#include <cerrno>
 #include <csignal>
 #include <cstdlib>
 #include <cstring>
@@ -300,6 +302,19 @@ int FlatZincCSPSolver::compute( bool changedvars )
 
  f_status = parse_output( out );
 
+ // the backend enforces a soft constraint as a hard one, its weight being an
+ // annotation, and ignores the costs of a "solve satisfy": unsatisfiability
+ // then proves nothing, and a solution is not proven optimal
+ if( ( f_status == kInfeasible ) && ( ! f_csp->all_hard() ) )
+  f_status = kError;
+ if( f_status == kOK ) {
+  f_complete = f_complete && f_csp->all_hard() &&
+               ( ( ! f_csp->has_costs() ) ||
+                 ( model.find( "\nsolve satisfy;" ) == std::string::npos ) );
+  if( ! f_complete )
+   f_status = kLowPrecision;
+  }
+
  if( rc == 1 ) {  // terminated because the time limit was reached
   f_complete = false;
   if( f_status != kInfeasible )
@@ -332,13 +347,20 @@ std::string FlatZincCSPSolver::flatzinc( void ) const
 
  // mark every variable as an output_var, so that the backend prints its
  // value: print() writes one "var ...: x<i> ... ;" per line, and adding
- // " :: output_var" before the ";" leaves the other annotations in place
+ // " :: output_var" before the ";" leaves the other annotations in place;
+ // an inactive constraint, which the backend would not know to be so from
+ // its annotation, is left out
+ static const std::string inactive = " :: inactive;";
  std::ostringstream out;
  std::istringstream in( full.str() );
  std::string line;
  while( std::getline( in , line ) ) {
-  if( ( line.rfind( "var " , 0 ) == 0 ) && ( ! line.empty() ) &&
-      ( line.back() == ';' ) )
+  if( ( line.rfind( "constraint " , 0 ) == 0 ) &&
+      ( line.size() >= inactive.size() ) &&
+      ( line.compare( line.size() - inactive.size() , inactive.size() ,
+		      inactive ) == 0 ) )
+   continue;
+  if( ( line.rfind( "var " , 0 ) == 0 ) && ( line.back() == ';' ) )
    line.insert( line.size() - 1 , " :: output_var" );
   out << line << "\n";
   }
@@ -381,7 +403,7 @@ int FlatZincCSPSolver::run_backend( const std::string & fzn ,
   }
 
  if( pid == 0 ) {  // the child runs the backend
-  dup2( ofd, STDOUT_FILENO );
+  dup2( ofd , STDOUT_FILENO );
   close( ofd );
   setpgid( 0 , 0 );  // own process group, to terminate the whole tree
   execvp( argv[ 0 ] , argv.data() );
@@ -398,7 +420,7 @@ int FlatZincCSPSolver::run_backend( const std::string & fzn ,
   const pid_t r = waitpid( pid , & wstatus , WNOHANG );
   if( r == pid )  // the backend ended by itself
    break;
-  if( r < 0 )     // waitpid failed
+  if( ( r < 0 ) && ( errno != EINTR ) )  // waitpid failed
    break;
   if( finite ) {
    const std::chrono::duration< double > el =
@@ -455,7 +477,7 @@ int FlatZincCSPSolver::parse_output( const std::string & out )
    continue;
   if( line.rfind( "----------" , 0 ) == 0 ) {  // end of a solution
    bool whole = true;
-   for( unsigned int i = 0 ; whole && ( i < n ) ; ++i )
+   for( std::size_t i = 0 ; whole && ( i < n ) ; ++i )
     whole = set[ i ];
    if( whole )
     latest = current;
@@ -472,7 +494,7 @@ int FlatZincCSPSolver::parse_output( const std::string & out )
   if( eq == std::string::npos )
    continue;
   std::string name = line.substr( 0 , eq );
-  while( ( ! name.empty() ) && std::isspace((unsigned char) name.back() ) )
+  while( ( ! name.empty() ) && std::isspace( ( unsigned char ) name.back() ) )
    name.pop_back();
   if( ( name.size() < 2 ) || ( name[ 0 ] != 'x' ) )
    continue;

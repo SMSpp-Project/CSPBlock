@@ -70,16 +70,20 @@ namespace SMSpp_di_unipi_it
  * vector-of-string one is a count and then its entries.
  *
  * compute() writes every variable of the CSPBlock as an output_var, so that
- * the backend prints its value; it reads from the FlatZinc output the last
- * complete assignment (for "solve minimize" the backend prints the improving
- * ones, the last being the best), sets the status to kOK if a solution is
- * found and the search is complete, kStopTime if the time limit dblMaxTime is
- * reached first (the process is then terminated), kInfeasible if the backend
- * reports =====UNSATISFIABLE=====, and kError if it fails for any other
- * reason or cannot be run. After kOK and kStopTime get_solution() is the
- * assignment found, one value per variable, which is_feasible() of the
- * CSPBlock checks and get_objective_value() evaluates; get_ub() is that value
- * and get_lb() is it too if the search is complete, -INF otherwise.
+ * the backend prints its value, and leaves the inactive constraints out; it
+ * reads from the FlatZinc output the last complete assignment (for "solve
+ * minimize" the backend prints the improving ones, the last being the best),
+ * sets the status to kOK if a solution is found and proven optimal,
+ * kLowPrecision if a solution is found but the backend could not prove it
+ * optimal (a soft constraint, or costs that are not a linear objective in
+ * one variable [see CSPBlock::print()]), kStopTime if the time limit
+ * dblMaxTime is reached first (the process is then terminated), kInfeasible
+ * if the backend reports =====UNSATISFIABLE===== and all the constraints are
+ * hard, and kError if it fails for any other reason or cannot be run. After
+ * kOK, kLowPrecision and kStopTime get_solution() is the assignment found,
+ * if any, one value per variable, which is_feasible() of the CSPBlock checks
+ * and get_objective_value() evaluates; get_ub() is that value and get_lb()
+ * is it too after kOK, -INF otherwise.
  *
  * The solution is read through get_solution(), one value per variable, as
  * CSPBlock::is_feasible( std::span ) takes it; get_var_solution() also
@@ -100,13 +104,15 @@ namespace SMSpp_di_unipi_it
  *
  * The writer emits standard FlatZinc predicates for the positive table, the
  * linear constraints, all_different, the element of offset 1 and cumulative,
- * which a stock backend knows; the negative table, the element of another
- * offset and the soft (weighted) constraints are written as the predicates
- * and the annotations that CSPBlock::load() reads, which a stock backend does
- * not define. A CSPBlock using those therefore needs a FlatZinc library that
- * defines them to be solved this way, which is out of the scope of this
- * class; the hard constraint satisfaction problems of the standard predicates,
- * with at most a linear objective in one variable, are what it solves. */
+ * which a stock backend knows; the negative table and the element of another
+ * offset are written as the predicates that CSPBlock::load() reads, which a
+ * stock backend does not define, and a CSPBlock using them needs a FlatZinc
+ * library that defines them to be solved this way. The weight of a soft
+ * constraint and the costs of the values, but for a linear objective in one
+ * variable, are annotations, which a backend ignores: it then enforces a
+ * soft constraint as a hard one and looks for any feasible solution. The
+ * hard constraint satisfaction problems of the standard predicates, with at
+ * most a linear objective in one variable, are thus what it solves. */
 
 class FlatZincCSPSolver : public Solver
 {
@@ -286,9 +292,9 @@ class FlatZincCSPSolver : public Solver
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
  /// true if the backend of strFlatZincSolver is found on the PATH
- /** Returns true if strFlatZincSolver is not empty and its first token, the
-  * executable of the backend, is found and executable on the PATH or as a
-  * path; what a test checks to skip when no backend is installed. */
+ /** Returns true if strFlatZincSolver is not empty and is found and
+  * executable, on the PATH if it has no slash and as a path otherwise; a
+  * test checks it to skip when no backend is installed. */
 
  [[nodiscard]] bool backend_found( void ) const;
 
@@ -306,7 +312,8 @@ class FlatZincCSPSolver : public Solver
  void process_outstanding_Modification( void );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
- /// the FlatZinc of the CSPBlock, every variable an output_var
+ /// the FlatZinc of the CSPBlock, every variable an output_var, the
+ /// inactive constraints left out
 
  [[nodiscard]] std::string flatzinc( void ) const;
 

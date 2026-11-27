@@ -22,8 +22,8 @@ groups the variables may be dealt out to. Its solutions are vectors of
 values, one per variable, which it checks against the constraints and whose
 objective value it computes. Its abstract representation is one integer
 variable per variable, bounded by its current domain, and one constraint per
-active hard constraint, the global ones carrying a check of an assignment and
-a linear relaxation.
+active hard constraint, the global ones carrying a check of an assignment
+and, where a cheap one is valid, a linear relaxation.
 
 A `CSPBlock` is read from a subset of FlatZinc, the language into which
 MiniZinc flattens a model for a solver (the documentation of `load()` lists

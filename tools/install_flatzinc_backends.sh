@@ -43,7 +43,14 @@ else
   tmp="$(mktemp -d)"
   trap 'rm -rf "$tmp"' EXIT
   curl -fsSL "$url" -o "${tmp}/bundle.tgz"
-  rm -rf "$prefix"
+  # the prefix is emptied only if it holds an older bundle
+  if [ -n "$(ls -A "$prefix" 2>/dev/null)" ]; then
+    if [ ! -x "${prefix}/bin/minizinc" ]; then
+      echo "${prefix} is not empty and holds no MiniZinc bundle" >&2
+      exit 1
+    fi
+    rm -rf "$prefix"
+  fi
   mkdir -p "$prefix"
   tar -xzf "${tmp}/bundle.tgz" -C "$prefix" --strip-components=1
 fi

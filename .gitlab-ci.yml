@@ -93,8 +93,8 @@ test:
     # the clone of the job, for the tests read their files from its sources
     - git -C "smspp-project/$CI_PROJECT_TITLE" fetch --quiet "$CI_PROJECT_DIR" "$CI_COMMIT_SHA"
     - git -C "smspp-project/$CI_PROJECT_TITLE" checkout --quiet "$CI_COMMIT_SHA"
-    # install a FlatZinc backend (the MiniZinc bundle with cp-sat, gecode and
-    # chuffed) so the FlatZincCSPSolver test runs for real instead of skipping
+    # the MiniZinc bundle (CP-SAT, Gecode and Chuffed), without which the
+    # battery leaves FlatZincCSPSolver out
     - tools/install_flatzinc_backends.sh
     - export PATH="$HOME/.local/minizinc/bin:$PATH"
   script:
