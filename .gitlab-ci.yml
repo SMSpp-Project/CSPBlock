@@ -94,7 +94,9 @@ test:
     - git -C "smspp-project/$CI_PROJECT_TITLE" fetch --quiet "$CI_PROJECT_DIR" "$CI_COMMIT_SHA"
     - git -C "smspp-project/$CI_PROJECT_TITLE" checkout --quiet "$CI_COMMIT_SHA"
     # the MiniZinc bundle (CP-SAT, Gecode and Chuffed), without which the
-    # battery leaves FlatZincCSPSolver out
+    # battery leaves FlatZincCSPSolver out, and the libraries of the graphical
+    # interface that the Gecode of the bundle is linked with
+    - apt-get update -qq && apt-get install -y -qq --no-install-recommends libgl1 libegl1 libxkbcommon0 libfontconfig1 libx11-6 libglib2.0-0 libdbus-1-3 > /dev/null
     - tools/install_flatzinc_backends.sh
     - export PATH="$HOME/.local/minizinc/bin:$PATH"
   script:

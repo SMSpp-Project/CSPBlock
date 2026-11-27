@@ -58,7 +58,10 @@ follows is about building the module yourself.
   `PATH`: `tools/install_flatzinc_backends.sh` installs the MiniZinc bundle
   (the `minizinc` driver and the backends OR-Tools CP-SAT, Gecode and
   Chuffed) under a prefix and with no root; on macOS, `brew install
-  minizinc`.
+  minizinc`. The Gecode of the bundle is linked with its graphical
+  interface, and on a system with no graphics it needs the libraries of
+  OpenGL, EGL and X11 (on Ubuntu, `libgl1 libegl1 libxkbcommon0
+  libfontconfig1 libx11-6 libglib2.0-0 libdbus-1-3`).
 
 ### Build and install with CMake
 
