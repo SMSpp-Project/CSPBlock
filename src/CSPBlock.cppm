@@ -28,6 +28,7 @@
 module;
 
 #include "CSPBlock.h"
+#include "CSPGlobalConstraints.h"
 #include "FlatZincCSPSolver.h"
 
 /*--------------------------------------------------------------------------*/
@@ -46,6 +47,14 @@ export namespace SMSpp_di_unipi_it {
  using SMSpp_di_unipi_it::CSPBlockMod;
  using SMSpp_di_unipi_it::CSPBlockRngdMod;
  using SMSpp_di_unipi_it::CSPBlockSbstMod;
+
+ // CSPGlobalConstraints.h
+ using SMSpp_di_unipi_it::AllDifferentConstraint;
+ using SMSpp_di_unipi_it::CSPConstraint;
+ using SMSpp_di_unipi_it::CumulativeConstraint;
+ using SMSpp_di_unipi_it::ElementConstraint;
+ using SMSpp_di_unipi_it::NotEqualConstraint;
+ using SMSpp_di_unipi_it::TableConstraint;
 
  // FlatZincCSPSolver.h
  using SMSpp_di_unipi_it::FlatZincCSPSolver;

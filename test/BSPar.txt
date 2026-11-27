@@ -1,0 +1,35 @@
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# - - - - - - - - - - - - - - - -  BSPar.txt  - - - - - - - - - - - - - - - -
+#
+# Cross-check BlockSolverConfig for a CSPBlock of the battery [see
+# battery.cpp], whose Solver must agree with the enumeration of its
+# solutions: kInfeasible if there is none, and otherwise a feasible solution
+# of the optimal value:
+#
+#   - FlatZincCSPSolver  the FlatZinc of the CSPBlock solved by CP-SAT
+#                        through MiniZinc (FlatZincCfg.txt)
+#
+# A FlatZincCSPSolver whose backend is not installed is left out.
+#
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+BlockSolverConfig     # exact type of the Configuration object
+
+1  # the BlockSolverConfig is a "differential" one: values are being set
+
+1  # number of (the names of) Solver in this BlockSolverConfig
+
+# now all the names of the Solver - - - - - - - - - - - - - - - - - - - - - -
+FlatZincCSPSolver  # 1st: CP-SAT through MiniZinc
+
+1  # number of ComputeConfig in this BlockSolverConfig
+
+# now all the ComputeConfig - - - - - - - - - - - - - - - - - - - - - - - - -
+*FlatZincCfg.txt
+
+# end of BlockSolverConfig - - - - - - - - - - - - - - - - - - - - - - - - -
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# - - - - - - - - - - - - - - -  END BSPar.txt  - - - - - - - - - - - - - - -
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

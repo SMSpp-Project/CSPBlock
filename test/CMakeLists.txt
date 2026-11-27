@@ -55,27 +55,12 @@ foreach (line IN LISTS batchLines)
 endforeach ()
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS batch)
 
-# ----- FlatZincCSPSolver_test ---------------------------------------------- #
+# ----- the configuration files -------------------------------------------- #
 
-# the Solver that solves a CSPBlock through an external FlatZinc solver; the
-# test is skipped (exit 77) when the backend of the configuration is not
-# installed, so it builds and runs without a FlatZinc solver
-add_executable(${modName}_FlatZincCSPSolver_test FlatZincCSPSolver_test.cpp)
-target_link_libraries(${modName}_FlatZincCSPSolver_test PRIVATE
-                      ${modNamespace}::${modName})
-
-smspp_copy_runtime(${modName}_FlatZincCSPSolver_test)
-
-# the configuration files go next to the test, which reads them
-foreach (cfg FlatZincCSPSolverBSCfg.txt FlatZincCSPSolverBSCfg-missing.txt
-             FlatZincCSPSolverCfg.txt)
+# the tests write their netCDF files in the build directory, where the
+# BlockSolverConfig and the ComputeConfig they read are copied
+foreach (cfg BSPar.txt BSPar-missing.txt FlatZincCfg.txt)
     configure_file(${cfg} ${CMAKE_CURRENT_BINARY_DIR}/${cfg} COPYONLY)
 endforeach ()
-
-add_test(NAME ${modName}_FlatZincCSPSolver_test
-         COMMAND ${modName}_FlatZincCSPSolver_test
-         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
-set_tests_properties(${modName}_FlatZincCSPSolver_test PROPERTIES
-                     LABELS "${modName}" SKIP_RETURN_CODE 77)
 
 # --------------------------------------------------------------------------- #

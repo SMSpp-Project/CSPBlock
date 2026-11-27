@@ -55,8 +55,7 @@ namespace SMSpp_di_unipi_it
  * for a CSPBlock [see CSPBlock.h] by delegating to an external FlatZinc
  * solver, run as a separate process: compute() writes the CSPBlock in
  * FlatZinc [see CSPBlock::print()] to a temporary file, runs the backend on
- * it, and reads the values of the variables back from its output, in the same
- * way as the :MILPSolver hand a MILP to CPLEX, Gurobi, SCIP or HiGHS.
+ * it, and reads the values of the variables back from its output.
  *
  * The backend is not fixed: the string parameter strFlatZincSolver is its
  * executable (e.g., "minizinc", "fzn-cp-sat", "fzn-gecode"), looked for on
@@ -64,9 +63,9 @@ namespace SMSpp_di_unipi_it
  * arguments, each an entry (e.g., [ "--solver" , "cp-sat" ] for the CP-SAT of
  * OR-Tools through MiniZinc); the command run is the executable, the
  * arguments, and the path of the FlatZinc file last. The executable has no
- * default in the code, which is why a default lives in a configuration file
- * [see the test]: an empty strFlatZincSolver makes compute() return kError.
- * The arguments are an entry each, rather than one string, because a
+ * default in the code, and it is given by a configuration file: compute()
+ * throws if strFlatZincSolver is empty, and returns kError if it is not
+ * found. The arguments are an entry each, rather than one string, because a
  * ComputeConfig reads a string parameter as a single token, while a
  * vector-of-string one is a count and then its entries.
  *
@@ -82,10 +81,11 @@ namespace SMSpp_di_unipi_it
  * CSPBlock checks and get_objective_value() evaluates; get_ub() is that value
  * and get_lb() is it too if the search is complete, -INF otherwise.
  *
- * Since the CSPBlock has no abstract representation [see CSPBlock.h], there
- * are no Variable to write the solution into: get_var_solution() has nothing
- * to do, and the solution is read through get_solution(), a std::span of the
- * values, as CSPBlock::is_feasible( std::span ) takes it.
+ * The solution is read through get_solution(), one value per variable, as
+ * CSPBlock::is_feasible( std::span ) takes it; get_var_solution() also
+ * writes it into the ColVariable of the abstract representation of the
+ * CSPBlock, if this has been generated [see
+ * CSPBlock::generate_abstract_variables()].
  *
  * A FlatZincCSPSolver reads the Modification of the CSPBlock [see
  * add_Modification()], the CSPBlockMod of a change of the physical
@@ -95,9 +95,8 @@ namespace SMSpp_di_unipi_it
  * the cached solution stale, the next compute() rewriting the FlatZinc and
  * running the backend again; a compute() with no Modification since the last
  * one returns the cached result. A warm start of the backend is not possible
- * through the textual FlatZinc (minizinc in batch), so the reoptimization here
- * is "rewrite the changed model and solve it again", not a warm start of the
- * backend; a warm start is left to the decomposition Solver to come.
+ * through the textual FlatZinc, so the reoptimization is "rewrite the
+ * changed model and solve it again".
  *
  * The writer emits standard FlatZinc predicates for the positive table, the
  * linear constraints, all_different, the element of offset 1 and cumulative,
@@ -152,7 +151,7 @@ class FlatZincCSPSolver : public Solver
                                /**< The executable of the FlatZinc backend
 				* (e.g., "minizinc", "fzn-cp-sat"), looked for
 				* on the PATH; empty (the default) makes
-				* compute() return kError. */
+				* compute() throw. */
   strLastAlgParFZCSP           ///< first new string parameter of derived
                                ///< classes
   };
@@ -270,10 +269,11 @@ class FlatZincCSPSolver : public Solver
  [[nodiscard]] bool has_var_solution( void ) override { return( f_has_sol ); }
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
- /// the CSPBlock has no abstract representation, so this does nothing
- /** The CSPBlock has no Variable to write the solution into [see the class]:
-  * this throws if there is no solution [see has_var_solution()] and does
-  * nothing otherwise, the solution being read by get_solution(). */
+ /// writes the solution into the abstract ColVariable of the CSPBlock
+ /** Writes the solution found into the integer ColVariable of the abstract
+  * representation of the CSPBlock, if it has been generated, and does
+  * nothing otherwise, the solution being read by get_solution(); throws if
+  * there is no solution [see has_var_solution()]. */
 
  void get_var_solution( Configuration * solc = nullptr ) override;
 

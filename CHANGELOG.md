@@ -24,15 +24,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the scheduling of tasks on a resource, whose solutions are enumerated and
   counted
 
+- the abstract representation of `CSPBlock`: an integer ColVariable per
+  variable, a box per variable on its current domain, an FRowConstraint per
+  linear constraint, and the global constraints as `CSPConstraint`, which
+  check an assignment through the physical representation and give a linear
+  relaxation where a cheap one is valid
+
 - `FlatZincCSPSolver`, the Solver that solves a CSPBlock by writing its
-  FlatZinc and running an external FlatZinc solver on it as a process
-  (OR-Tools CP-SAT, Gecode, Chuffed, ...), its executable being the parameter
-  `strFlatZincSolver` and its arguments `vstrFlatZincArgs`, and reading the
-  solution back; it reads the Modification of the CSPBlock and rewrites and
-  solves the model again at the next `compute()`, since the textual FlatZinc
-  gives no warm start of the backend; a default configuration, a test on the
-  4 queens skipped when no backend is installed, and
-  `tools/install_flatzinc_backends.sh` to install the MiniZinc bundle
+  FlatZinc and running an external FlatZinc solver on it as a process, its
+  executable being the parameter `strFlatZincSolver` and its arguments
+  `vstrFlatZincArgs`, and reading the solution back; a Modification of the
+  CSPBlock makes the next `compute()` write and solve the model again; the
+  battery checks it against the enumeration of the solutions, and
+  `tools/install_flatzinc_backends.sh` installs the MiniZinc bundle
 
 ### Changed
 

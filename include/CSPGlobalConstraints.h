@@ -6,11 +6,11 @@
  * the CSPBlock [see CSPBlock.h]. The physical representation of the CSPBlock
  * is a compact catalogue of constraints, each a kind [see
  * CSPBlock::constraint_kind], a scope and some parameters; the abstract
- * representation of a global, following section 3 of doc/cp-design.md, is a
- * concrete :Constraint over the integer ColVariable of the CSPBlock, giving
- * two things: a verifier feasible(), by which any Solver checks an assignment
- * cheaply, and a linear relaxation, by which a Solver that cannot digest the
- * global natively still has a weak but valid linear view of it.
+ * representation of a global is a concrete :Constraint over the integer
+ * ColVariable of the CSPBlock, giving two things: a verifier feasible(), by
+ * which any Solver checks an assignment cheaply, and a linear relaxation, by
+ * which a Solver that cannot digest the global natively still has a weak but
+ * valid linear view of it.
  *
  * The verifier is the same one the physical representation already has: each
  * class here reuses CSPBlock::is_satisfied() for its constraint index, so the
@@ -19,12 +19,6 @@
  * is not here; the classes here are the global ones, i.e., AllDifferent,
  * Table (positive and negative), Element and Cumulative, plus NotEqual for a
  * kLinear with the kNE operator, which is not a single row.
- *
- * These are module-local classes, in the CSPBlock module and not in the
- * SMS++ core: whether the abstract globals belong in the core, as the CP
- * analogue of RowConstraint, or in the module, is left open in section 3 of
- * the design note, and placing them here keeps phase 1 additive and away
- * from the core.
  *
  * \author Donato Meoli \n
  *         Dipartimento di Informatica \n
@@ -83,8 +77,8 @@ class CSPBlock;  // forward declaration: the owner of the constraints
  * abstract verifier is thus the physical one, so the two never disagree.
  *
  * Each derived class differs only in its linear relaxation, lin_relaxation()
- * [see the derived classes], which is best effort: a cheap, standard
- * linearization where one is at hand, an empty list with a TODO otherwise.
+ * [see the derived classes]: a cheap, standard linearization where one is at
+ * hand, an empty list otherwise.
  * The verifier is in the base, since is_satisfied() already dispatches on the
  * kind; a derived class exists so that a Solver can tell the globals apart
  * and so that each carries its own relaxation.
@@ -240,8 +234,7 @@ class CSPConstraint : public Constraint
   * allocated FRowConstraint over the ColVariable of the scope, which become
   * property of the caller, i.e., the caller deletes them. The base returns
   * an empty list, i.e., no linear view; the derived classes override it
-  * where a cheap, valid linearization is at hand [see them]. Defined in
-  * CSPBlock.cpp. */
+  * where a cheap, valid linearization is at hand [see them]. */
 
  [[nodiscard]] virtual std::list< FRowConstraint * > lin_relaxation( void )
   const { return( std::list< FRowConstraint * >() ); }
@@ -343,16 +336,23 @@ class CSPConstraint : public Constraint
 /*--------------------------------------------------------------------------*/
 /// the abstract form of a kAllDifferent constraint
 /** The variables of the scope must take pairwise different values. The
- * verifier is the base one; the linear relaxation is the cheap, valid "sum"
- * bound (Williams and Yan): if the k distinct variables must take distinct
- * values, their sum is at least the sum of the k smallest and at most the sum
- * of the k largest distinct values that any of them may take, which is read
- * off the current domains. This is a single FRowConstraint lb <= sum x_i <=
- * ub; it is weak but valid, and far cheaper than the pairwise big-M or the
- * clique inequalities. When the union of the domains has fewer than k distinct
- * values the constraint is infeasible by the pigeonhole principle, and the
- * relaxation is a single row no point satisfies (1 <= sum x_i <= 0), so that
- * it witnesses the infeasibility rather than dropping it. */
+ * verifier is the base one; the linear relaxation is the "sum" bound. Let
+ * \f$x_1, \ldots, x_k\f$ be the distinct variables of the scope and
+ * \f$v_1 < v_2 < \ldots < v_p\f$ the distinct values of the union of their
+ * current domains: if \f$p \geq k\f$, the relaxation is the single
+ * FRowConstraint
+ * \f[
+ *   \sum_{j = 1}^k v_j \;\leq\; \sum_{i = 1}^k x_i \;\leq\;
+ *   \sum_{j = 1}^k v_{p - j + 1} \;,
+ * \f]
+ * which is weak but valid, and far cheaper than the pairwise big-M or the
+ * clique inequalities [see H.P. Williams, H. Yan, "Representations of the
+ * all_different predicate of constraint satisfaction in integer
+ * programming", INFORMS Journal on Computing 13(2), 96-103, 2001,
+ * doi:10.1287/ijoc.13.2.96.10515]. If \f$p < k\f$ the constraint is
+ * infeasible by the pigeonhole principle, and the relaxation is the single
+ * row \f$1 \leq \sum_{i = 1}^k x_i \leq 0\f$, which no point satisfies,
+ * so that it witnesses the infeasibility rather than dropping it. */
 
 class AllDifferentConstraint : public CSPConstraint
 {
@@ -374,14 +374,17 @@ class AllDifferentConstraint : public CSPConstraint
 /// the abstract form of a kExtension or kConflicts constraint
 /** The values of the scope must be one of the tuples (kExtension) or none of
  * them (kConflicts). The verifier is the base one. For a positive table
- * (kExtension) the linear relaxation is the cheap, valid per-variable box: for
- * each distinct variable of the scope, the min..max of the values that
- * variable takes across the tuples, as one FRowConstraint lb <= x <= ub; it is
- * a necessary condition (every tuple lies in it), weak but valid and with no
- * auxiliary variable, far cheaper than the convex hull of the table. For a
- * negative table (kConflicts) the feasible region is not convex and the box
- * would not be valid, so the relaxation is left empty. TODO: a convex-hull or
- * big-M view of the whole table, and a view of the negative one. */
+ * (kExtension) with the tuples \f$t^1, \ldots, t^q\f$ the linear relaxation
+ * is the per-variable box: for each distinct variable \f$x\f$ of the scope,
+ * at the positions \f$J_x\f$ of the scope, the FRowConstraint
+ * \f[
+ *   \min_{h , j \in J_x} t^h_j \;\leq\; x \;\leq\;
+ *   \max_{h , j \in J_x} t^h_j \;.
+ * \f]
+ * It is a necessary condition (every tuple lies in it), weak but valid and
+ * with no auxiliary variable, far cheaper than the convex hull of the table.
+ * For a negative table (kConflicts) the feasible region is not convex and
+ * the box would not be valid, so the relaxation is empty. */
 
 class TableConstraint : public CSPConstraint
 {
@@ -401,11 +404,12 @@ class TableConstraint : public CSPConstraint
 /*------------------------- CLASS ElementConstraint ------------------------*/
 /*--------------------------------------------------------------------------*/
 /// the abstract form of a kElement constraint
-/** With the scope ( i , z , x_0 , ... , x_{k - 1} ) and offset o, the index
- * variable i selects x_{i - o} and forces it equal to z. The verifier is the
- * base one. A valid linear relaxation needs an indicator or big-M per entry
- * (z - x_j is 0 when i = o + j), which is not cheap. TODO: emit the big-M
- * form; for now the relaxation is empty. */
+/** With the scope \f$( i , z , x_0 , \ldots , x_{k - 1} )\f$ and offset
+ * \f$o\f$, the index variable \f$i\f$ selects \f$x_{i - o}\f$ and forces
+ * it equal to \f$z\f$. The verifier is the base one. A valid linear
+ * relaxation needs an indicator or a big-M per entry (\f$z - x_j = 0\f$ when
+ * \f$i = o + j\f$), i.e., auxiliary variables, so the relaxation is
+ * empty. */
 
 class ElementConstraint : public CSPConstraint
 {
@@ -416,9 +420,6 @@ class ElementConstraint : public CSPConstraint
 
  ~ElementConstraint() override = default;
 
- // TODO: lin_relaxation() left as the base (empty); the standard view is the
- //       big-M/indicator linking z to x_{i - o}.
-
  };  // end( class( ElementConstraint ) )
 
 /*--------------------------------------------------------------------------*/
@@ -428,8 +429,7 @@ class ElementConstraint : public CSPConstraint
 /** At every time t the resource used by the tasks running at t is at most the
  * capacity. The verifier is the base one. A valid linear relaxation is the
  * time-indexed or the energetic-reasoning formulation, neither of which is
- * cheap and both of which need auxiliary variables the prototype does not
- * add. TODO: emit the time-indexed relaxation; for now the relaxation is
+ * cheap and both of which need auxiliary variables, so the relaxation is
  * empty. */
 
 class CumulativeConstraint : public CSPConstraint
@@ -441,10 +441,6 @@ class CumulativeConstraint : public CSPConstraint
 
  ~CumulativeConstraint() override = default;
 
- // TODO: lin_relaxation() left as the base (empty); the standard views are
- //       the time-indexed and the energetic one, both needing extra
- //       variables.
-
  };  // end( class( CumulativeConstraint ) )
 
 /*--------------------------------------------------------------------------*/
@@ -455,10 +451,9 @@ class CumulativeConstraint : public CSPConstraint
  * FRowConstraint and is built directly by the CSPBlock, without a class here;
  * one with the kNE operator, \f$\sum_i a_i v_i \neq b\f$, is not a single row
  * (its feasible region is not convex), so it is kept as an abstract verifier
- * here, with no linear view. The verifier is the base one, over is_satisfied.
- * TODO: emit the two-sided big-M disjunction (sum <= b - 1 OR sum >= b + 1)
- * with an auxiliary binary, when the abstract objective and the auxiliaries
- * are available; for now the relaxation is empty. */
+ * here. The verifier is the base one; a linear view is the disjunction
+ * \f$\sum_i a_i v_i \leq b - 1 \vee \sum_i a_i v_i \geq b + 1\f$, which
+ * needs an auxiliary binary variable, so the relaxation is empty. */
 
 class NotEqualConstraint : public CSPConstraint
 {
@@ -468,9 +463,6 @@ class NotEqualConstraint : public CSPConstraint
   : CSPConstraint( fblock ) {}
 
  ~NotEqualConstraint() override = default;
-
- // TODO: lin_relaxation() left as the base (empty); the kNE is a non-convex
- //       disjunction, linearized only with an auxiliary binary and big-M.
 
  };  // end( class( NotEqualConstraint ) )
 

@@ -117,12 +117,19 @@ namespace SMSpp_di_unipi_it
  *
  * All this is the "physical representation" of the CSPBlock, together with
  * the groups the variables may be dealt out to [see set_variable_groups()],
- * which are what a structure of the CSPBlock is to be made of. The
- * "abstract representation" is not defined yet: the generate_abstract_*()
- * methods of Block do nothing, and the CSPBlock has no Variable, Constraint
- * or Objective. Hence, its solutions are vectors of values, one per variable,
- * which is_feasible( std::span< const int > ) and get_objective_value()
- * check against the physical representation.
+ * which are what a structure of the CSPBlock is to be made of. Its
+ * solutions are vectors of values, one per variable, which
+ * is_feasible( std::span< const int > ) and get_objective_value() check
+ * against the physical representation.
+ *
+ * The "abstract representation" [see generate_abstract_variables() and
+ * generate_abstract_constraints()] is one integer ColVariable per variable,
+ * a box OneVarConstraint per variable holding the min and the max of its
+ * current domain, and one Constraint per active hard constraint: an
+ * FRowConstraint for a linear one with the kLE or the kEQ operator, a
+ * :CSPConstraint [see CSPGlobalConstraints.h] for the others. A soft
+ * constraint, the holes of a current domain and the costs of the values are
+ * not in it, and the CSPBlock has no abstract Objective.
  *
  * A CSPBlock can be load()-ed from a subset of the FlatZinc format, and
  * deserialize()-d and serialize()-d out of and into a netCDF group [see
@@ -347,17 +354,16 @@ class CSPBlock : public Block
   * operator is an FRowConstraint over a LinearFunction, the globals and a
   * kLinear with the kNE operator are the module-local :CSPConstraint [see
   * CSPGlobalConstraints.h], each reusing is_satisfied() as its verifier. A
-  * soft constraint is not built here, since its penalty belongs to the
-  * objective, which phase 1 does not generate [see generate_objective()]. */
+  * soft constraint is not built, since its weight belongs to the objective
+  * [see generate_objective()]. */
 
  void generate_abstract_constraints( Configuration * stcc = nullptr )
   override;
 
 /*--------------------- Methods for handling Objective ---------------------*/
- /// the abstract objective is not defined yet: does nothing
- /** The abstract objective (the costs of the values and the weights of the
-  * soft constraints) is left to a later phase [see doc/cp-design.md]; phase 1
-  * only generates the Variable and the Constraint. */
+ /// does nothing: the CSPBlock has no abstract Objective
+ /** The costs of the values and the weights of the soft constraints are only
+  * in the physical representation [see get_objective_value()]. */
 
  void generate_objective( Configuration * = nullptr ) override {}
 
@@ -793,7 +799,7 @@ class CSPBlock : public Block
  Modification::ModConcern set_active( Index k , bool active );
 
 /*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
- /// empties the CSPBlock
+ /// empties the CSPBlock, its abstract representation included
 
  void guts_of_destructor( void );
 
@@ -823,10 +829,12 @@ class CSPBlock : public Block
  // constraints so that, on destruction, the constraints (destroyed first,
  // in reverse order of declaration) unregister from ColVariable still alive
 
- unsigned char f_AR = 0;  ///< what of the abstract representation is there
+ unsigned char AR = 0;  ///< bit-wise coded: what abstract is there
 
- static constexpr unsigned char HasVar = 1;  ///< the Variable are there
- static constexpr unsigned char HasCon = 2;  ///< the Constraint are there
+ static constexpr unsigned char HasVar = 1;
+ ///< first bit of AR == 1 if the Variable have been constructed
+ static constexpr unsigned char HasCns = 2;
+ ///< second bit of AR == 1 if the Constraint have been constructed
 
  std::vector< ColVariable > v_var;  ///< one integer ColVariable per variable
 

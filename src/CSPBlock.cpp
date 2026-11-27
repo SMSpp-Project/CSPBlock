@@ -1095,6 +1095,20 @@ void CSPBlock::check_weights( const v_dbl & weights , Index first ) const
 
 void CSPBlock::guts_of_destructor( void )
 {
+ // the Constraint go before the ColVariable they are active in, and are told
+ // not to bother with them, both going away together
+ Constraint::clear( v_box );
+ Constraint::clear( v_lin );
+ Constraint::clear( v_alldiff );
+ Constraint::clear( v_table );
+ Constraint::clear( v_element );
+ Constraint::clear( v_cumul );
+ Constraint::clear( v_ne );
+ reset_static_constraints();
+ reset_static_variables();
+ v_var.clear();
+ AR = 0;
+
  v_universe.clear();
  v_flag().swap( v_domain );
  v_dbl().swap( v_costs );
@@ -1282,6 +1296,170 @@ void CSPBlock::set_variable_groups( v_int && groups )
  }
 
 /*--------------------------------------------------------------------------*/
+/*-------------- Methods for handling Variable and Constraint --------------*/
+/*--------------------------------------------------------------------------*/
+
+void CSPBlock::generate_abstract_variables( Configuration * stvv )
+{
+ if( AR & HasVar )  // the variables are there already
+  return;             // nothing to do
+
+ const auto n = get_number_variables();
+ v_var.resize( n );   // resized once, so the ColVariable do not move
+ for( Index i = 0 ; i < n ; ++i )
+  v_var[ i ].is_integer( true , eNoBlck );  // integer; bounds are the box
+
+ add_static_variable( v_var , "x" );
+
+ AR |= HasVar;
+
+ }  // end( CSPBlock::generate_abstract_variables )
+
+/*--------------------------------------------------------------------------*/
+
+void CSPBlock::generate_abstract_constraints( Configuration * stcc )
+{
+ if( ! ( AR & HasVar ) )  // the Variable are built first, as the protocol
+  generate_abstract_variables();  // asks [see Block.h]
+
+ if( AR & HasCns )  // the constraints are there already
+  return;             // nothing to do
+
+ const auto n = get_number_variables();
+ const auto m = get_number_constraints();
+
+ // the box of each variable, i.e., the min..max of its current domain; a
+ // domain with holes gives the same box, its missing values being left to
+ // the physical current domain, and an empty domain gives an infeasible box
+ v_box.resize( n );
+ for( Index i = 0 ; i < n ; ++i ) {
+  const auto d = get_domain( i );
+  v_box[ i ].set_variable( & v_var[ i ] , eNoBlck );
+  if( d.empty() ) {           // no value is left: an infeasible box
+   v_box[ i ].set_lhs( 1 , eNoBlck );
+   v_box[ i ].set_rhs( 0 , eNoBlck );
+   }
+  else {
+   v_box[ i ].set_lhs( d.front() , eNoBlck );
+   v_box[ i ].set_rhs( d.back() , eNoBlck );
+   }
+  }
+ add_static_constraint( v_box , "bnd" );
+
+ // the distinct variables of the scope of the k-th constraint, in the order
+ // of their first appearance
+ const auto distinct_scope = [ this ]( Index k ) {
+  CSPConstraint::v_var_ptr vars;
+  for( auto s : get_scopes()[ k ] )
+   if( std::find( vars.begin() , vars.end() , & v_var[ s ] ) == vars.end() )
+    vars.push_back( & v_var[ s ] );
+  return( vars );
+  };
+
+ // an active and hard constraint is in exactly one of the groups below, by
+ // its kind, and, for a kLinear, by its operator; a soft or inactive one is
+ // not in the abstract representation [see the class comment]. Count first,
+ // so each vector is resized once and its :Constraint never move
+ Index n_lin = 0 , n_ne = 0 , n_ad = 0 , n_tb = 0 , n_el = 0 , n_cu = 0;
+ for( Index k = 0 ; k < m ; ++k ) {
+  if( ( ! v_active[ k ] ) || ( ! is_hard( k ) ) )
+   continue;
+  switch( v_kind[ k ] ) {
+   case( kLinear ): {
+    const auto p = get_parameters()[ k ];
+    ( p[ p.size() - 2 ] == kNE ? n_ne : n_lin )++;
+    break;
+    }
+   case( kAllDifferent ): ++n_ad; break;
+   case( kExtension ):
+   case( kConflicts ):    ++n_tb; break;
+   case( kElement ):      ++n_el; break;
+   case( kCumulative ):   ++n_cu; break;
+   default: break;
+   }
+  }
+
+ v_lin.resize( n_lin );
+ v_ne.resize( n_ne );
+ v_alldiff.resize( n_ad );
+ v_table.resize( n_tb );
+ v_element.resize( n_el );
+ v_cumul.resize( n_cu );
+
+ // fill the groups; the counters now index into the resized vectors
+ Index i_lin = 0 , i_ne = 0 , i_ad = 0 , i_tb = 0 , i_el = 0 , i_cu = 0;
+ for( Index k = 0 ; k < m ; ++k ) {
+  if( ( ! v_active[ k ] ) || ( ! is_hard( k ) ) )
+   continue;
+
+  switch( v_kind[ k ] ) {
+   case( kLinear ): {
+    const auto s = get_scopes()[ k ];
+    const auto p = get_parameters()[ k ];
+    const int op = p[ p.size() - 2 ];
+    const long long b = p[ p.size() - 1 ];
+
+    if( op == kNE ) {       // not a single row: an abstract verifier only
+     v_ne[ i_ne ].set_data( this , k , distinct_scope( k ) );
+     ++i_ne;
+     break;
+     }
+
+    // kLE or kEQ: an FRowConstraint over a LinearFunction, the coefficients
+    // of a repeated variable summed so that each variable appears once
+    std::map< Index , double > agg;
+    for( Index j = 0 ; j < s.size() ; ++j )
+     agg[ s[ j ] ] += double( p[ j ] );
+    LinearFunction::v_coeff_pair pairs;
+    pairs.reserve( agg.size() );
+    for( const auto & [ idx , coef ] : agg )
+     if( coef != 0 )
+      pairs.emplace_back( & v_var[ idx ] , coef );
+
+    auto & fr = v_lin[ i_lin ];
+    if( op == kEQ )
+     fr.set_both( double( b ) , eNoBlck );
+    else {                  // kLE: - INF <= sum <= b
+     fr.set_lhs( - RowConstraint::RHSINF , eNoBlck );
+     fr.set_rhs( double( b ) , eNoBlck );
+     }
+    fr.set_function( new LinearFunction( std::move( pairs ) ) , eNoBlck );
+    ++i_lin;
+    break;
+    }
+   case( kAllDifferent ):
+    v_alldiff[ i_ad ].set_data( this , k , distinct_scope( k ) );
+    ++i_ad;
+    break;
+   case( kExtension ):
+   case( kConflicts ):
+    v_table[ i_tb ].set_data( this , k , distinct_scope( k ) );
+    ++i_tb;
+    break;
+   case( kElement ):
+    v_element[ i_el ].set_data( this , k , distinct_scope( k ) );
+    ++i_el;
+    break;
+   case( kCumulative ):
+    v_cumul[ i_cu ].set_data( this , k , distinct_scope( k ) );
+    ++i_cu;
+    break;
+   default: break;
+   }
+  }
+
+ if( ! v_lin.empty() )     add_static_constraint( v_lin , "lin" );
+ if( ! v_ne.empty() )      add_static_constraint( v_ne , "ne" );
+ if( ! v_alldiff.empty() ) add_static_constraint( v_alldiff , "alldiff" );
+ if( ! v_table.empty() )   add_static_constraint( v_table , "table" );
+ if( ! v_element.empty() ) add_static_constraint( v_element , "element" );
+ if( ! v_cumul.empty() )   add_static_constraint( v_cumul , "cumulative" );
+
+ AR |= HasCns;
+
+ }  // end( CSPBlock::generate_abstract_constraints )
+
+/*--------------------------------------------------------------------------*/
 /*----------------- Methods for reading the data of the CSPBlock -----------*/
 /*--------------------------------------------------------------------------*/
 
@@ -1448,6 +1626,30 @@ double CSPBlock::get_objective_value( std::span< const int > a ) const
   c += v_costs[ s ];
   }
  return( c );
+ }
+
+/*--------------------------------------------------------------------------*/
+
+bool CSPBlock::is_feasible( bool useabstract , Configuration * fsbc )
+{
+ if( ! useabstract )
+  return( Block::is_feasible( false , fsbc ) );
+
+ if( ! ( AR & HasCns ) )
+  throw( std::logic_error( "CSPBlock::is_feasible: the abstract constraints "
+			   "are not generated" ) );
+
+ const auto chk = []( auto & vec ) {
+  for( auto & c : vec ) {
+   c.compute();
+   if( ! c.feasible() )
+    return( false );
+   }
+  return( true );
+  };
+
+ return( chk( v_box ) && chk( v_lin ) && chk( v_ne ) && chk( v_alldiff ) &&
+	 chk( v_table ) && chk( v_element ) && chk( v_cumul ) );
  }
 
 /*--------------------------------------------------------------------------*/
@@ -2201,196 +2403,7 @@ void CSPBlockChange::serialize( netCDF::NcGroup & group ) const
  }
 
 /*--------------------------------------------------------------------------*/
-/*----------- Methods for the abstract representation (phase 1) ------------*/
-/*--------------------------------------------------------------------------*/
-
-void CSPBlock::generate_abstract_variables( Configuration * stvv )
-{
- if( f_AR & HasVar )  // the variables are there already
-  return;             // nothing to do
-
- const auto n = get_number_variables();
- v_var.resize( n );   // resized once, so the ColVariable do not move
- for( Index i = 0 ; i < n ; ++i )
-  v_var[ i ].is_integer( true , eNoBlck );  // integer; bounds are the box
-
- add_static_variable( v_var , "x" );
-
- f_AR |= HasVar;
-
- }  // end( CSPBlock::generate_abstract_variables )
-
-/*--------------------------------------------------------------------------*/
-
-void CSPBlock::generate_abstract_constraints( Configuration * stcc )
-{
- if( ! ( f_AR & HasVar ) )  // the Variable are built first, as the protocol
-  generate_abstract_variables();  // asks [see Block.h]
-
- if( f_AR & HasCon )  // the constraints are there already
-  return;             // nothing to do
-
- const auto n = get_number_variables();
- const auto m = get_number_constraints();
-
- // the box of each variable, i.e., the min..max of its current domain; a
- // domain with holes gives the same box, its missing values being left to
- // the physical current domain (TODO: enforce them in the abstract form too,
- // e.g., with a small table), and an empty domain gives an infeasible box
- v_box.resize( n );
- for( Index i = 0 ; i < n ; ++i ) {
-  const auto d = get_domain( i );
-  v_box[ i ].set_variable( & v_var[ i ] , eNoBlck );
-  if( d.empty() ) {           // no value is left: an infeasible box
-   v_box[ i ].set_lhs( 1 , eNoBlck );
-   v_box[ i ].set_rhs( 0 , eNoBlck );
-   }
-  else {
-   v_box[ i ].set_lhs( d.front() , eNoBlck );
-   v_box[ i ].set_rhs( d.back() , eNoBlck );
-   }
-  }
- add_static_constraint( v_box , "bnd" );
-
- // the distinct variables of the scope of the k-th constraint, in the order
- // of their first appearance
- const auto distinct_scope = [ this ]( Index k ) {
-  CSPConstraint::v_var_ptr vars;
-  for( auto s : get_scopes()[ k ] )
-   if( std::find( vars.begin() , vars.end() , & v_var[ s ] ) == vars.end() )
-    vars.push_back( & v_var[ s ] );
-  return( vars );
-  };
-
- // an active and hard constraint is in exactly one of the groups below, by
- // its kind, and, for a kLinear, by its operator; a soft or inactive one is
- // not in the abstract representation [see the class comment]. Count first,
- // so each vector is resized once and its :Constraint never move
- Index n_lin = 0 , n_ne = 0 , n_ad = 0 , n_tb = 0 , n_el = 0 , n_cu = 0;
- for( Index k = 0 ; k < m ; ++k ) {
-  if( ( ! v_active[ k ] ) || ( ! is_hard( k ) ) )
-   continue;
-  switch( v_kind[ k ] ) {
-   case( kLinear ): {
-    const auto p = get_parameters()[ k ];
-    ( p[ p.size() - 2 ] == kNE ? n_ne : n_lin )++;
-    break;
-    }
-   case( kAllDifferent ): ++n_ad; break;
-   case( kExtension ):
-   case( kConflicts ):    ++n_tb; break;
-   case( kElement ):      ++n_el; break;
-   case( kCumulative ):   ++n_cu; break;
-   default: break;
-   }
-  }
-
- v_lin.resize( n_lin );
- v_ne.resize( n_ne );
- v_alldiff.resize( n_ad );
- v_table.resize( n_tb );
- v_element.resize( n_el );
- v_cumul.resize( n_cu );
-
- // fill the groups; the counters now index into the resized vectors
- Index i_lin = 0 , i_ne = 0 , i_ad = 0 , i_tb = 0 , i_el = 0 , i_cu = 0;
- for( Index k = 0 ; k < m ; ++k ) {
-  if( ( ! v_active[ k ] ) || ( ! is_hard( k ) ) )
-   continue;
-
-  switch( v_kind[ k ] ) {
-   case( kLinear ): {
-    const auto s = get_scopes()[ k ];
-    const auto p = get_parameters()[ k ];
-    const int op = p[ p.size() - 2 ];
-    const long long b = p[ p.size() - 1 ];
-
-    if( op == kNE ) {       // not a single row: an abstract verifier only
-     v_ne[ i_ne ].set_data( this , k , distinct_scope( k ) );
-     ++i_ne;
-     break;
-     }
-
-    // kLE or kEQ: an FRowConstraint over a LinearFunction, the coefficients
-    // of a repeated variable summed so that each variable appears once
-    std::map< Index , double > agg;
-    for( Index j = 0 ; j < s.size() ; ++j )
-     agg[ s[ j ] ] += double( p[ j ] );
-    LinearFunction::v_coeff_pair pairs;
-    pairs.reserve( agg.size() );
-    for( const auto & [ idx , coef ] : agg )
-     if( coef != 0 )
-      pairs.emplace_back( & v_var[ idx ] , coef );
-
-    auto & fr = v_lin[ i_lin ];
-    if( op == kEQ )
-     fr.set_both( double( b ) , eNoBlck );
-    else {                  // kLE: - INF <= sum <= b
-     fr.set_lhs( - RowConstraint::RHSINF , eNoBlck );
-     fr.set_rhs( double( b ) , eNoBlck );
-     }
-    fr.set_function( new LinearFunction( std::move( pairs ) ) , eNoBlck );
-    ++i_lin;
-    break;
-    }
-   case( kAllDifferent ):
-    v_alldiff[ i_ad ].set_data( this , k , distinct_scope( k ) );
-    ++i_ad;
-    break;
-   case( kExtension ):
-   case( kConflicts ):
-    v_table[ i_tb ].set_data( this , k , distinct_scope( k ) );
-    ++i_tb;
-    break;
-   case( kElement ):
-    v_element[ i_el ].set_data( this , k , distinct_scope( k ) );
-    ++i_el;
-    break;
-   case( kCumulative ):
-    v_cumul[ i_cu ].set_data( this , k , distinct_scope( k ) );
-    ++i_cu;
-    break;
-   default: break;
-   }
-  }
-
- if( ! v_lin.empty() )     add_static_constraint( v_lin , "lin" );
- if( ! v_ne.empty() )      add_static_constraint( v_ne , "ne" );
- if( ! v_alldiff.empty() ) add_static_constraint( v_alldiff , "alldiff" );
- if( ! v_table.empty() )   add_static_constraint( v_table , "table" );
- if( ! v_element.empty() ) add_static_constraint( v_element , "element" );
- if( ! v_cumul.empty() )   add_static_constraint( v_cumul , "cumulative" );
-
- f_AR |= HasCon;
-
- }  // end( CSPBlock::generate_abstract_constraints )
-
-/*--------------------------------------------------------------------------*/
-
-bool CSPBlock::is_feasible( bool useabstract , Configuration * fsbc )
-{
- if( ! useabstract )
-  return( Block::is_feasible( false , fsbc ) );
-
- if( ! ( f_AR & HasCon ) )
-  throw( std::logic_error( "CSPBlock::is_feasible: the abstract constraints "
-			   "are not generated" ) );
-
- const auto chk = []( auto & vec ) {
-  for( auto & c : vec ) {
-   c.compute();
-   if( ! c.feasible() )
-    return( false );
-   }
-  return( true );
-  };
-
- return( chk( v_box ) && chk( v_lin ) && chk( v_ne ) && chk( v_alldiff ) &&
-	 chk( v_table ) && chk( v_element ) && chk( v_cumul ) );
- }
-
-/*--------------------------------------------------------------------------*/
-/*------ Methods of the abstract global constraints [see the header] -------*/
+/*---------- METHODS OF CSPConstraint AND OF ITS DERIVED CLASSES -----------*/
 /*--------------------------------------------------------------------------*/
 
 int CSPConstraint::compute( bool changedvars )

@@ -7,7 +7,9 @@
  * of constraint at its limits, the feasibility of an assignment and its
  * objective, the round trips through netCDF and through the writer, the
  * physical changes and what each Modification says it changes [see
- * Modification::changes()], and the CSPBlockChange with its undo.
+ * Modification::changes()], the CSPBlockChange with its undo, the
+ * abstract representation against the physical one, and FlatZincCSPSolver
+ * on the 4 queens [see BSPar.txt].
  *
  * \author Donato Meoli \n
  *         Dipartimento di Informatica \n
@@ -28,8 +30,10 @@
 #include <string>
 #include <vector>
 
+#include "BlockSolverConfig.h"
 #include "CSPBlock.h"
 #include "FakeSolver.h"
+#include "FlatZincCSPSolver.h"
 
 // the checks hold in every build type, Release included
 #undef NDEBUG
@@ -819,8 +823,8 @@ static void test_abstract( void )
   delete fr;
  }
 
- // a negative table, an element and a cumulative give no linear view in the
- // prototype: kConflicts is non-convex, the other two need auxiliary variables
+ // a negative table, an element and a cumulative give no linear view:
+ // kConflicts is non-convex, the other two need auxiliary variables
  {
   CSPBlock b;
   b.load( CSPBlock::v_v_int( 3 , { 0 , 1 , 2 , 3 } ) ,
@@ -837,6 +841,120 @@ static void test_abstract( void )
   assert( tb.lin_relaxation().empty() && el.lin_relaxation().empty() &&
 	  cu.lin_relaxation().empty() );
  }
+
+ // a load() drops the abstract representation, which is then generated
+ // anew for the new CSPBlock
+ {
+  CSPBlock b;
+  b.load( CSPBlock::v_v_int( 3 , { 0 , 1 , 2 , 3 } ) ,
+	  { CSPBlock::kAllDifferent } , { { 0 , 1 , 2 } } , { {} } );
+  b.generate_abstract_variables();
+  b.generate_abstract_constraints();
+  b.load( CSPBlock::v_v_int( 5 , { 0 , 1 } ) , { CSPBlock::kAllDifferent } ,
+	  { { 3 , 4 } } , { {} } );
+  assert( b.get_abstract_variables().empty() );
+  bool thrown = false;
+  try { b.is_feasible( true ); }
+  catch( std::logic_error & ) { thrown = true; }
+  assert( thrown );
+  check_abstract( b , { { 0 , 0 , 0 , 0 , 1 } , { 0 , 0 , 0 , 1 , 1 } } );
+ }
+ }
+
+/*--------------------------------------------------------------------------*/
+/// the 4 queens in FlatZinc, as MiniZinc would flatten it [see battery.cpp]
+
+static std::string queens4( void )
+{
+ std::ostringstream o;
+ for( int i = 0 ; i < 4 ; ++i )
+  o << "var 1..4: q" << i << " :: output_var;\n";
+ o << "array [1..4] of var int: q = [q0, q1, q2, q3];\n";
+ o << "constraint fzn_all_different_int(q);\n";
+ for( int i = 0 ; i < 4 ; ++i )
+  for( int j = i + 1 ; j < 4 ; ++j ) {
+   o << "constraint int_lin_ne([1, -1], [q" << i << ", q" << j << "], "
+     << j - i << ");\n";
+   o << "constraint int_lin_ne([1, -1], [q" << i << ", q" << j << "], "
+     << i - j << ");\n";
+   }
+ o << "solve satisfy;\n";
+ return( o.str() );
+ }
+
+/*--------------------------------------------------------------------------*/
+/// FlatZincCSPSolver on the 4 queens: the parameters of BSPar.txt bite, a
+/// Modification makes it solve again, and a missing backend gives kError;
+/// the parts that run the backend are left out if it is not installed
+
+static void test_flatzinc_solver( void )
+{
+ CSPBlock b;
+ std::istringstream in( queens4() );
+ b.load( in );
+
+ auto cfg = Configuration::deserialize( "BSPar.txt" );
+ auto bsc = dynamic_cast< BlockSolverConfig * >( cfg );
+ assert( bsc );
+ bsc->apply( & b );
+ assert( ! b.get_registered_solvers().empty() );
+ auto solver = dynamic_cast< FlatZincCSPSolver * >(
+				       b.get_registered_solvers().front() );
+ assert( solver );
+
+ // a malformed ComputeConfig is discarded whole and in silence, so the
+ // parameters must be those of the file and not the defaults
+ assert( solver->get_str_par( FlatZincCSPSolver::strFlatZincSolver ) ==
+	 "minizinc" );
+ const auto & args =
+  solver->get_vstr_par( FlatZincCSPSolver::vstrFlatZincArgs );
+ assert( ( args.size() == 2 ) && ( args[ 0 ] == "--solver" ) &&
+	 ( args[ 1 ] == "cp-sat" ) );
+ assert( solver->get_dbl_par( Solver::dblMaxTime ) == 60 );
+
+ if( ! solver->backend_found() )
+  std::cout << "FlatZincCSPSolver: the backend \""
+	    << solver->get_str_par( FlatZincCSPSolver::strFlatZincSolver )
+	    << "\" is not installed, the solve is left out" << std::endl;
+ else {
+  assert( solver->compute() == Solver::kOK );
+  assert( solver->has_var_solution() );
+  assert( b.is_feasible( solver->get_solution() ) );
+
+  // the solution goes into the abstract representation too
+  b.generate_abstract_variables();
+  b.generate_abstract_constraints();
+  solver->get_var_solution();
+  assert( b.is_feasible( true ) );
+
+  // restricting the first variable to its value issues a CSPBlockMod, and
+  // the next compute() solves the changed CSPBlock
+  const CSPBlock::v_int sol( solver->get_solution().begin() ,
+			     solver->get_solution().end() );
+  b.chg_domains( Block::Subset{ 0 } , CSPBlock::v_v_int{ { sol[ 0 ] } } );
+  assert( solver->compute() == Solver::kOK );
+  assert( b.is_feasible( solver->get_solution() ) &&
+	  ( solver->get_solution()[ 0 ] == sol[ 0 ] ) );
+  }
+
+ bsc->clear();
+ bsc->apply( & b );
+ delete cfg;
+
+ // a backend that is not installed makes compute() return kError
+ auto cfgm = Configuration::deserialize( "BSPar-missing.txt" );
+ auto bscm = dynamic_cast< BlockSolverConfig * >( cfgm );
+ assert( bscm );
+ bscm->apply( & b );
+ auto solverm = dynamic_cast< FlatZincCSPSolver * >(
+				       b.get_registered_solvers().front() );
+ assert( solverm );
+ assert( solverm->get_str_par( FlatZincCSPSolver::strFlatZincSolver ) ==
+	 "fzn-no-such-backend" );
+ assert( solverm->compute() == Solver::kError );
+ bscm->clear();
+ bscm->apply( & b );
+ delete cfgm;
  }
 
 /*--------------------------------------------------------------------------*/
@@ -852,6 +970,7 @@ int main( void )
  test_modifications();
  test_changes();
  test_abstract();
+ test_flatzinc_solver();
 
  std::cout << "CSPBlock: all tests passed" << std::endl;
  return( 0 );

@@ -13,7 +13,10 @@
  * CSPBlock::is_feasible()], and their number must be the one of the batch
  * file, or, for the scheduling, the one counted by a check of the resource
  * time by time that does not use CSPBlock, which also gives the optimal
- * makespan.
+ * makespan. Each Solver of the BlockSolverConfig BSPar.txt must then agree
+ * with the enumeration: kInfeasible if there is no solution, and otherwise
+ * kOK with a feasible solution of the optimal value; a FlatZincCSPSolver
+ * whose backend is not installed is left out.
  *
  *     CSPBlock_battery_test <family> <size> <solutions | ->
  *
@@ -35,7 +38,9 @@
 #include <string>
 #include <vector>
 
+#include "BlockSolverConfig.h"
 #include "CSPBlock.h"
+#include "FlatZincCSPSolver.h"
 
 /*--------------------------------------------------------------------------*/
 /*-------------------------------- USING -----------------------------------*/
@@ -373,8 +378,44 @@ int main( int argc , char ** argv )
  Enumerator e( b );
  e.run();
 
+ // the Solver of BSPar.txt against the enumeration
+ bool solved = true;
+ std::ostringstream slog;
+ {
+  auto cfg = Configuration::deserialize( "BSPar.txt" );
+  auto bsc = dynamic_cast< BlockSolverConfig * >( cfg );
+  if( ! bsc ) {
+   std::cerr << "BSPar.txt is not a BlockSolverConfig" << std::endl;
+   delete cfg;
+   return( 1 );
+   }
+  bsc->apply( & b );
+  for( auto s : b.get_registered_solvers() ) {
+   const std::string & name = s->classname();
+   auto fz = dynamic_cast< FlatZincCSPSolver * >( s );
+   if( fz && ( ! fz->backend_found() ) ) {
+    slog << ", " << name << " left out (no backend)";
+    continue;
+    }
+   const int status = s->compute();
+   bool sok;
+   if( e.count == 0 )
+    sok = ( status == Solver::kInfeasible );
+   else
+    sok = ( status == Solver::kOK ) && s->has_var_solution() &&
+          ( s->get_ub() == e.best ) &&
+          ( ( ! fz ) || b.is_feasible( fz->get_solution() ) );
+   slog << ", " << name << " status " << status << ( sok ? " OK" : " FAILED" );
+   solved = solved && sok;
+   }
+  bsc->clear();
+  bsc->apply( & b );
+  delete cfg;
+  }
+
  const bool ok = trips && ( ! e.wrong ) && ( e.count == expected ) &&
-                 ( ( family != "scheduling" ) || ( e.best == optimum ) );
+                 ( ( family != "scheduling" ) || ( e.best == optimum ) ) &&
+                 solved;
  std::cout << family << " " << size << ": " << b.get_number_variables()
 	   << " variables, " << b.get_number_constraints()
 	   << " constraints, " << e.count << " solutions (expected "
@@ -386,6 +427,7 @@ int main( int argc , char ** argv )
   std::cout << ", round trip FAILED";
  if( e.wrong )
   std::cout << ", a solution not feasible";
+ std::cout << slog.str();
  std::cout << ( ok ? ": OK" : ": FAILED" ) << std::endl;
  return( ok ? 0 : 1 );
  }

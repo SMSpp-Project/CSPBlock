@@ -27,12 +27,14 @@
 
 # macros to be exported - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-CSPBkOBJ = $(CSPBkSDR)/obj/CSPBlock.o
+CSPBkOBJ = $(CSPBkSDR)/obj/CSPBlock.o \
+           $(CSPBkSDR)/obj/FlatZincCSPSolver.o
 
 CSPBkINC = -I$(CSPBkSDR)/include
 
 CSPBkH   = $(CSPBkSDR)/include/CSPBlock.h \
-	$(CSPBkSDR)/include/CSPGlobalConstraints.h
+           $(CSPBkSDR)/include/CSPGlobalConstraints.h \
+           $(CSPBkSDR)/include/FlatZincCSPSolver.h
 
 # the C++20 module [see makefile-mod of SMS++] - - - - - - - - - - - - - - -
 # the prefixes of the modules of the dependencies (e.g., UCBck) go in place
@@ -49,8 +51,14 @@ clean::
 # dependencies: every .o from its .cpp + every recursively included .h- - - -
 
 $(CSPBkSDR)/obj/CSPBlock.o: $(CSPBkSDR)/src/CSPBlock.cpp \
-	$(CSPBkSDR)/include/CSPBlock.h $(SMS++H) $(SMS++OBJ)
+	$(CSPBkSDR)/include/CSPBlock.h \
+	$(CSPBkSDR)/include/CSPGlobalConstraints.h $(SMS++H) $(SMS++OBJ)
 	$(CC) -c $(CSPBkSDR)/src/CSPBlock.cpp -o $@ \
+	$(CSPBkINC) $(SMS++INC) $(SW)
+
+$(CSPBkSDR)/obj/FlatZincCSPSolver.o: \
+	$(CSPBkSDR)/src/FlatZincCSPSolver.cpp $(CSPBkH) $(SMS++OBJ)
+	$(CC) -c $(CSPBkSDR)/src/FlatZincCSPSolver.cpp -o $@ \
 	$(CSPBkINC) $(SMS++INC) $(SW)
 
 ########################## End of makefile ###################################

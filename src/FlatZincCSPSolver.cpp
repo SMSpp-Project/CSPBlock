@@ -18,6 +18,7 @@
 /*--------------------------------------------------------------------------*/
 
 #include <chrono>
+#include <filesystem>
 #include <fstream>
 #include <sstream>
 #include <thread>
@@ -72,6 +73,17 @@ bool executable( const std::string & file )
    return( true );
   }
  return( false );
+ }
+
+/*--------------------------------------------------------------------------*/
+/// the template of a temporary file \p name in the temporary directory of
+/// the system, empty if there is none
+
+std::string temp_template( const char * name )
+{
+ std::error_code ec;
+ const auto dir = std::filesystem::temp_directory_path( ec );
+ return( ec ? std::string() : ( dir / name ).string() );
  }
 
 }  // namespace
@@ -227,7 +239,7 @@ int FlatZincCSPSolver::compute( bool changedvars )
 
  // the backend is given by the configuration, with no default in the code:
  // an empty strFlatZincSolver is a misconfiguration, not a reason to invent
- // one [see FlatZincCSPSolverCfg.txt]
+ // one
  if( FlatZincSolver.empty() )
   throw( std::invalid_argument( "FlatZincCSPSolver::compute: no backend; "
 				"strFlatZincSolver is empty, set it in the "
@@ -256,8 +268,8 @@ int FlatZincCSPSolver::compute( bool changedvars )
   }
 
  // write the FlatZinc of the CSPBlock to a temporary file
- char tmpl[] = "/tmp/fzncsp_XXXXXX.fzn";
- const int fd = mkstemps( tmpl , 4 );
+ std::string tmpl = temp_template( "fzncsp_XXXXXX.fzn" );
+ const int fd = tmpl.empty() ? -1 : mkstemps( tmpl.data() , 4 );
  if( fd < 0 ) {
   f_status = kError;
   unlock();
@@ -356,15 +368,15 @@ int FlatZincCSPSolver::run_backend( const std::string & fzn ,
  argv.push_back( nullptr );
 
  // the standard output of the backend goes to a temporary file
- char otmpl[] = "/tmp/fzncsp_out_XXXXXX";
- const int ofd = mkstemp( otmpl );
+ std::string otmpl = temp_template( "fzncsp_out_XXXXXX" );
+ const int ofd = otmpl.empty() ? -1 : mkstemp( otmpl.data() );
  if( ofd < 0 )
   return( -1 );
 
  const pid_t pid = fork();
  if( pid < 0 ) {
   close( ofd );
-  unlink( otmpl );
+  unlink( otmpl.c_str() );
   return( -1 );
   }
 
@@ -410,7 +422,7 @@ int FlatZincCSPSolver::run_backend( const std::string & fzn ,
  buf << read.rdbuf();
  out = buf.str();
  close( ofd );
- unlink( otmpl );
+ unlink( otmpl.c_str() );
 
  if( ( ! terminated ) && WIFEXITED( wstatus ) &&
      ( WEXITSTATUS( wstatus ) == 127 ) )
@@ -507,8 +519,14 @@ void FlatZincCSPSolver::get_var_solution( Configuration * )
  if( ! f_has_sol )
   throw( std::logic_error( "FlatZincCSPSolver::get_var_solution: no "
 			   "solution" ) );
- // the CSPBlock has no abstract representation: nothing to write into, the
- // solution is read by get_solution()
+
+ // the ColVariable are there only if the abstract representation has been
+ // generated, and then there is one per variable
+ auto & var = f_csp->get_abstract_variables();
+ if( var.size() != v_sol.size() )
+  return;
+ for( std::size_t i = 0 ; i < v_sol.size() ; ++i )
+  var[ i ].set_value( v_sol[ i ] );
  }
 
 /*--------------------------------------------------------------------------*/

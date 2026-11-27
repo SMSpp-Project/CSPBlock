@@ -1,12 +1,14 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# - - - - - - - - - - - - FlatZincCSPSolverCfg.txt  - - - - - - - - - - - - -
+# - - - - - - - - - - - - - -  FlatZincCfg.txt  - - - - - - - - - - - - - - -
 #
 # The ComputeConfig of a FlatZincCSPSolver that solves a CSPBlock with the
-# CP-SAT of OR-Tools through MiniZinc; change strFlatZincSolver and
-# vstrFlatZincArgs to run fzn-cp-sat, Gecode, Chuffed or another backend.
+# CP-SAT of OR-Tools through MiniZinc; strFlatZincSolver and
+# vstrFlatZincArgs select another backend (e.g., fzn-cp-sat, Gecode,
+# Chuffed).
 #
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
 ComputeConfig # exact type of the ComputeConfig object
 
 1  # f_diff == 1 ==> all non-provided parameters are not changed
@@ -19,7 +21,7 @@ ComputeConfig # exact type of the ComputeConfig object
 1  # number of double parameters
 
 # now all the double parameters
-dblMaxTime 60  # the time limit of compute(), in seconds
+dblMaxTime 60  # seconds
 
 1  # number of string parameters
 
@@ -39,12 +41,13 @@ strFlatZincSolver minizinc  # the executable of the backend, on the PATH
 1  # number of vector-of-string parameters
 
 # now all the vector-of-string parameters
-vstrFlatZincArgs 2 --solver cp-sat  # the arguments: OR-Tools CP-SAT
+vstrFlatZincArgs 2 --solver cp-sat  # the arguments: CP-SAT
 
 # pointer to the "extra" Configuration
 *  # [none]
 
 # end of ComputeConfig
+
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# - - - - - - - - - - - END FlatZincCSPSolverCfg.txt  - - - - - - - - - - - -
+# - - - - - - - - - - - - -  END FlatZincCfg.txt  - - - - - - - - - - - - - -
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

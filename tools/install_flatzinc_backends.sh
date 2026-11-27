@@ -6,14 +6,15 @@
 #    CSPBlock [see include/FlatZincCSPSolver.h]. This script installs the     #
 #    official MiniZinc bundle, which carries the `minizinc` driver and the    #
 #    backends OR-Tools CP-SAT, Gecode and Chuffed, under a prefix and with no #
-#    root, so it also fits a cluster account such as fenchel; it is           #
-#    idempotent, doing nothing if the bundle of the asked version is there.   #
+#    root; it is idempotent, doing nothing if the bundle of the asked version #
+#    is there.                                                                #
 #                                                                             #
 #        ./install_flatzinc_backends.sh [--prefix=<dir>] [--version=<ver>]    #
 #                                                                             #
 #    It then prints the line that puts `minizinc` on the PATH and how the     #
 #    backends map to the strFlatZincSolver and vstrFlatZincArgs parameters.   #
 #    On macOS use `brew install minizinc`, which bundles the same backends.   #
+#                                                                             #
 #                                Donato Meoli                                 #
 #                         Dipartimento di Informatica                         #
 #                             Universita' di Pisa                             #

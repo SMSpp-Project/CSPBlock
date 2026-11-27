@@ -18,9 +18,12 @@ current domain within it, so that a restriction of a domain (e.g., by a
 branching) keeps the indices of all the values; the constraints, each with
 its kind, its scope and its integer parameters, stored one after the other;
 their weights and whether each is active; the costs of the values; and the
-groups the variables may be dealt out to. The `CSPBlock` has no abstract
-representation: its solutions are vectors of values, one per variable, which
-it checks against the constraints and whose objective value it computes.
+groups the variables may be dealt out to. Its solutions are vectors of
+values, one per variable, which it checks against the constraints and whose
+objective value it computes. Its abstract representation is one integer
+variable per variable, bounded by its current domain, and one constraint per
+active hard constraint, the global ones carrying a check of an assignment and
+a linear relaxation.
 
 A `CSPBlock` is read from a subset of FlatZinc, the language into which
 MiniZinc flattens a model for a solver (the documentation of `load()` lists
@@ -31,10 +34,10 @@ extended, with the `CSPBlockMod` that tell the Solver what changed, and the
 `CSPBlockChange` restricts the domains as a branching does (assigning,
 removing or splitting a value) and brings them back.
 
-A `CSPBlock` is solved by `FlatZincCSPSolver`, which writes its FlatZinc and
-runs an external FlatZinc solver on it as a separate process (OR-Tools CP-SAT
-by default, or Gecode, Chuffed and others), chosen by the `strFlatZincSolver`
-and `vstrFlatZincArgs` parameters, and reads the solution back.
+A `CSPBlock` is solved by `FlatZincCSPSolver`, which writes its FlatZinc,
+runs an external FlatZinc solver on it as a separate process (e.g., OR-Tools
+CP-SAT, Gecode or Chuffed, chosen by its parameters) and reads the solution
+back.
 
 
 ## Getting started
@@ -53,10 +56,9 @@ follows is about building the module yourself.
 
 - To solve a `CSPBlock` with `FlatZincCSPSolver`, a FlatZinc backend on the
   `PATH`: `tools/install_flatzinc_backends.sh` installs the MiniZinc bundle
-  (the `minizinc` driver and the backends OR-Tools CP-SAT, Gecode and Chuffed)
-  under a prefix and with no root, which fits a cluster account such as
-  fenchel; on macOS, `brew install minizinc`. The `strFlatZincSolver` and
-  `vstrFlatZincArgs` parameters select the driver and the backend.
+  (the `minizinc` driver and the backends OR-Tools CP-SAT, Gecode and
+  Chuffed) under a prefix and with no root; on macOS, `brew install
+  minizinc`.
 
 ### Build and install with CMake
 
