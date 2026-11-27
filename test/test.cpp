@@ -909,7 +909,7 @@ static void test_flatzinc_solver( void )
  const auto & args =
   solver->get_vstr_par( FlatZincCSPSolver::vstrFlatZincArgs );
  assert( ( args.size() == 2 ) && ( args[ 0 ] == "--solver" ) &&
-	 ( args[ 1 ] == "cp-sat" ) );
+	 ( args[ 1 ] == "com.google.ortools.sat" ) );
  assert( solver->get_dbl_par( Solver::dblMaxTime ) == 60 );
 
  if( ! solver->backend_found() )

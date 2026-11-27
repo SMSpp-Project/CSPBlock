@@ -4,11 +4,10 @@
 /** @file
  * Header file for the *concrete* class FlatZincCSPSolver, which implements the
  * Solver concept [see Solver.h] for a CSPBlock [see CSPBlock.h] by writing its
- * FlatZinc and running an external FlatZinc solver on it as a separate
- * process, reading the solution back from the output of the process. The
- * executable of the backend, and its fixed arguments, are a string parameter,
- * so that the same class drives OR-Tools CP-SAT (minizinc --solver cp-sat, or
- * fzn-cp-sat), Gecode, Chuffed or any other FlatZinc solver.
+ * FlatZinc and running the MiniZinc driver on it as a separate process,
+ * reading the solution back from the output of the process. The executable
+ * and its arguments are parameters, so that the same class drives OR-Tools
+ * CP-SAT, Gecode, Chuffed or any other solver that MiniZinc knows.
  *
  * \author Donato Meoli \n
  *         Dipartimento di Informatica \n
@@ -54,15 +53,18 @@ namespace SMSpp_di_unipi_it
 /** The FlatZincCSPSolver class implements the Solver concept [see Solver.h]
  * for a CSPBlock [see CSPBlock.h] by delegating to an external FlatZinc
  * solver, run as a separate process: compute() writes the CSPBlock in
- * FlatZinc [see CSPBlock::print()] to a temporary file, runs the backend on
- * it, and reads the values of the variables back from its output.
+ * FlatZinc [see CSPBlock::print()], preceded by the few definitions that make
+ * it a MiniZinc model (see below), to a temporary file, runs the MiniZinc
+ * driver on it, and reads the values of the variables back from its output.
  *
  * The backend is not fixed: the string parameter strFlatZincSolver is its
- * executable (e.g., "minizinc", "fzn-cp-sat", "fzn-gecode"), looked for on
- * the PATH, and the vector-of-string parameter vstrFlatZincArgs is its
- * arguments, each an entry (e.g., [ "--solver" , "cp-sat" ] for the CP-SAT of
- * OR-Tools through MiniZinc); the command run is the executable, the
- * arguments, and the path of the FlatZinc file last. The executable has no
+ * executable, i.e., "minizinc" (or a path to it), looked for on the PATH,
+ * and the vector-of-string parameter vstrFlatZincArgs is its arguments, each
+ * an entry (e.g., [ "--solver" , "com.google.ortools.sat" ] for the CP-SAT
+ * of OR-Tools, "org.gecode.gecode" for Gecode, "org.chuffed.chuffed" for
+ * Chuffed, the identifiers that do not change from a version of MiniZinc to
+ * another); the command run is the executable, the arguments, and the path
+ * of the model last. The executable has no
  * default in the code, and it is given by a configuration file: compute()
  * throws if strFlatZincSolver is empty, and returns kError if it is not
  * found. The arguments are an entry each, rather than one string, because a
@@ -71,7 +73,7 @@ namespace SMSpp_di_unipi_it
  *
  * compute() writes every variable of the CSPBlock as an output_var, so that
  * the backend prints its value, and leaves the inactive constraints out; it
- * reads from the FlatZinc output the last complete assignment (for "solve
+ * reads from the output the last complete assignment (for "solve
  * minimize" the backend prints the improving ones, the last being the best),
  * sets the status to kOK if a solution is found and proven optimal,
  * kLowPrecision if a solution is found but the backend could not prove it
@@ -102,17 +104,19 @@ namespace SMSpp_di_unipi_it
  * through the textual FlatZinc, so the reoptimization is "rewrite the
  * changed model and solve it again".
  *
- * The writer emits standard FlatZinc predicates for the positive table, the
- * linear constraints, all_different, the element of offset 1 and cumulative,
- * which a stock backend knows; the negative table and the element of another
- * offset are written as the predicates that CSPBlock::load() reads, which a
- * stock backend does not define, and a CSPBlock using them needs a FlatZinc
- * library that defines them to be solved this way. The weight of a soft
- * constraint and the costs of the values, but for a linear objective in one
- * variable, are annotations, which a backend ignores: it then enforces a
- * soft constraint as a hard one and looks for any feasible solution. The
- * hard constraint satisfaction problems of the standard predicates, with at
- * most a linear objective in one variable, are thus what it solves. */
+ * The model is the FlatZinc of print() read as MiniZinc, which the driver
+ * flattens for the backend with the library of the backend, so that each
+ * global constraint is native or decomposed as the backend wants: it
+ * includes globals.mzn, for all_different and cumulative, and defines the
+ * positive table of FlatZinc (one array of tuples, while MiniZinc wants a 2D
+ * one), the negative table and the element of an offset other than 1, which
+ * print() writes as predicates that are not in FlatZinc. The annotations of
+ * print() that MiniZinc does not know (universe, group, cost, weight) are
+ * removed. The weight of a soft constraint and the costs of the values, but
+ * for a linear objective in one variable, are thus lost: the backend
+ * enforces a soft constraint as a hard one and looks for any feasible
+ * solution. The hard constraint satisfaction problems, with at most a linear
+ * objective in one variable, are what it solves exactly. */
 
 class FlatZincCSPSolver : public Solver
 {
@@ -155,7 +159,7 @@ class FlatZincCSPSolver : public Solver
  enum str_par_type_FZCSP {
   strFlatZincSolver = strLastAlgPar ,  ///< the executable of the backend
                                /**< The executable of the FlatZinc backend
-				* (e.g., "minizinc", "fzn-cp-sat"), looked for
+				* (i.e., "minizinc" or a path), looked for
 				* on the PATH; empty (the default) makes
 				* compute() throw. */
   strLastAlgParFZCSP           ///< first new string parameter of derived
@@ -205,7 +209,7 @@ class FlatZincCSPSolver : public Solver
   vstrFlatZincArgs = vstrLastAlgPar ,  ///< the arguments of the backend
                                /**< The arguments passed to the executable of
 				* strFlatZincSolver, one per entry (e.g.,
-				* [ "--solver" , "cp-sat" ]); empty by
+				* [ "--solver" , "org.gecode.gecode" ]); empty by
 				* default. */
   vstrLastAlgParFZCSP          ///< first new vector-of-string parameter of
                                ///< derived classes

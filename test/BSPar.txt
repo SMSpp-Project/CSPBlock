@@ -66,7 +66,7 @@ FlatZincCSPSolver  # 3rd: Chuffed through MiniZinc
 1  # number of vector-of-string parameters
 
 # now all the vector-of-string parameters
-vstrFlatZincArgs 2 --solver gecode  # the arguments: Gecode
+vstrFlatZincArgs 2 --solver org.gecode.gecode  # Gecode
 
 # pointer to the "extra" Configuration
 *  # [none]
@@ -103,7 +103,7 @@ vstrFlatZincArgs 2 --solver gecode  # the arguments: Gecode
 1  # number of vector-of-string parameters
 
 # now all the vector-of-string parameters
-vstrFlatZincArgs 2 --solver chuffed  # the arguments: Chuffed
+vstrFlatZincArgs 2 --solver org.chuffed.chuffed  # Chuffed
 
 # pointer to the "extra" Configuration
 *  # [none]

@@ -61,5 +61,6 @@ echo "    export PATH=\"${prefix}/bin:\$PATH\""
 echo
 echo "The backends, for the FlatZincCSPSolver parameters, are:"
 echo "    strFlatZincSolver minizinc"
-echo "    vstrFlatZincArgs  2 --solver cp-sat   # or gecode, or chuffed"
+echo "    vstrFlatZincArgs  2 --solver com.google.ortools.sat"
+echo "    (or org.gecode.gecode, or org.chuffed.chuffed)"
 # --------------------------------------------------------------------------- #

@@ -34,10 +34,10 @@ extended, with the `CSPBlockMod` that tell the Solver what changed, and the
 `CSPBlockChange` restricts the domains as a branching does (assigning,
 removing or splitting a value) and brings them back.
 
-A `CSPBlock` is solved by `FlatZincCSPSolver`, which writes its FlatZinc,
-runs an external FlatZinc solver on it as a separate process (e.g., OR-Tools
-CP-SAT, Gecode or Chuffed, chosen by its parameters) and reads the solution
-back.
+A `CSPBlock` is solved by `FlatZincCSPSolver`, which writes its FlatZinc as
+a MiniZinc model, runs the MiniZinc driver on it as a separate process with
+the backend chosen by its parameters (e.g., OR-Tools CP-SAT, Gecode or
+Chuffed) and reads the solution back.
 
 
 ## Getting started

@@ -269,8 +269,8 @@ int FlatZincCSPSolver::compute( bool changedvars )
   return( f_status );
   }
 
- // write the FlatZinc of the CSPBlock to a temporary file
- std::string tmpl = temp_template( "fzncsp_XXXXXX.fzn" );
+ // write the model of the CSPBlock to a temporary file
+ std::string tmpl = temp_template( "fzncsp_XXXXXX.mzn" );
  const int fd = tmpl.empty() ? -1 : mkstemps( tmpl.data() , 4 );
  if( fd < 0 ) {
   f_status = kError;
@@ -345,13 +345,35 @@ std::string FlatZincCSPSolver::flatzinc( void ) const
  std::ostringstream full;
  f_csp->print( full , 'C' );
 
- // mark every variable as an output_var, so that the backend prints its
- // value: print() writes one "var ...: x<i> ... ;" per line, and adding
- // " :: output_var" before the ";" leaves the other annotations in place;
- // an inactive constraint, which the backend would not know to be so from
- // its annotation, is left out
- static const std::string inactive = " :: inactive;";
+ // the model is read by the MiniZinc driver, which flattens it for the
+ // backend with the library of the backend: the global constraints come from
+ // globals.mzn, fzn_table_int (whose table is one array in FlatZinc but a 2D
+ // one in MiniZinc) and the two predicates of print() that are not in
+ // FlatZinc are defined here
  std::ostringstream out;
+ out << "include \"globals.mzn\";\n"
+	"predicate fzn_table_int( array[ int ] of var int : x ,\n"
+	"                         array[ int ] of int : t ) =\n"
+	" table( x , array2d( 1..length( t ) div length( x ) ,\n"
+	"                     1..length( x ) , t ) );\n"
+	"predicate csp_table_int_neg( array[ int ] of var int : x ,\n"
+	"                             array[ int ] of int : t ) =\n"
+	" forall( r in 0..length( t ) div length( x ) - 1 )(\n"
+	"  exists( j in 1..length( x ) )(\n"
+	"   x[ min( index_set( x ) ) + j - 1 ] != t[ r * length( x ) + j ] ) );\n"
+	"predicate csp_element_offset( var int : i , int : o ,\n"
+	"                              array[ int ] of var int : x ,\n"
+	"                              var int : z ) =\n"
+	" z = x[ i - o + min( index_set( x ) ) ];\n";
+
+ // every variable is marked as an output_var, so that the backend prints its
+ // value, and the annotations of print() that MiniZinc does not know
+ // (universe, group, cost, weight) are removed; an inactive constraint,
+ // which the backend would not know to be so from its annotation, is left
+ // out
+ static const std::string inactive = " :: inactive;";
+ static const char * const own[] = { " :: universe(" , " :: group(" ,
+				     " :: cost(" , " :: weight(" };
  std::istringstream in( full.str() );
  std::string line;
  while( std::getline( in , line ) ) {
@@ -360,6 +382,15 @@ std::string FlatZincCSPSolver::flatzinc( void ) const
       ( line.compare( line.size() - inactive.size() , inactive.size() ,
 		      inactive ) == 0 ) )
    continue;
+  for( const char * a : own )
+   for( auto pos = line.find( a ) ; pos != std::string::npos ;
+	pos = line.find( a , pos ) ) {
+    // the annotation ends at the parenthesis that closes its own
+    auto end = pos + std::strlen( a );
+    for( int depth = 1 ; ( end < line.size() ) && depth ; ++end )
+     depth += ( line[ end ] == '(' ) - ( line[ end ] == ')' );
+    line.erase( pos , end - pos );
+    }
   if( ( line.rfind( "var " , 0 ) == 0 ) && ( line.back() == ';' ) )
    line.insert( line.size() - 1 , " :: output_var" );
   out << line << "\n";

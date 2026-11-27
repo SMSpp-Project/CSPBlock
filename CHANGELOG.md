@@ -31,9 +31,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   relaxation where a cheap one is valid
 
 - `FlatZincCSPSolver`, the Solver that solves a CSPBlock by writing its
-  FlatZinc and running an external FlatZinc solver on it as a process, its
-  executable being the parameter `strFlatZincSolver` and its arguments
-  `vstrFlatZincArgs`, and reading the solution back; a Modification of the
+  FlatZinc as a MiniZinc model and running the MiniZinc driver on it as a
+  process, its executable being the parameter `strFlatZincSolver` and its
+  arguments (the backend) `vstrFlatZincArgs`, and reading the solution back; a Modification of the
   CSPBlock makes the next `compute()` write and solve the model again; the
   battery checks it against the enumeration of the solutions, and
   `tools/install_flatzinc_backends.sh` installs the MiniZinc bundle
